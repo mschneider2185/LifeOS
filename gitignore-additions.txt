@@ -1,0 +1,20 @@
+
+# LifeOS — local only
+LifeOS — Product & System/
+mind-map-pro/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
