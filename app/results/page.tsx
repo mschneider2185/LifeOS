@@ -174,7 +174,7 @@ export default function ResultsPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Brain className="h-8 w-8 text-primary-600" />
-            <span className="text-2xl font-bold gradient-text">Mind Map Pro</span>
+            <span className="text-2xl font-bold gradient-text">LifeOS</span>
           </div>
           <div className="flex items-center space-x-4">
             <Link href="/dashboard" className="btn-secondary flex items-center space-x-2">

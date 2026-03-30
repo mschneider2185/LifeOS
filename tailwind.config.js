@@ -8,6 +8,19 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // LifeOS design tokens
+        'dark-bg': '#0a0a0f',
+        'glass-surface': 'rgba(255, 255, 255, 0.05)',
+        'glass-border': 'rgba(255, 255, 255, 0.1)',
+        'glass-border-hover': 'rgba(255, 255, 255, 0.2)',
+        'cyan-accent': '#00d4ff',
+        'purple-accent': '#8b5cf6',
+        'success': '#10b981',
+        'warning': '#f59e0b',
+        'danger': '#ef4444',
+        'text-primary': '#ffffff',
+        'text-secondary': 'rgba(255, 255, 255, 0.6)',
+        // Legacy colors (keep for existing assessment pages)
         primary: {
           50: '#f0f9ff',
           100: '#e0f2fe',
@@ -46,7 +59,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-geist)', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'system-ui', 'sans-serif'],
         display: ['Poppins', 'system-ui', 'sans-serif'],
       },
       animation: {
@@ -67,4 +80,4 @@ module.exports = {
     },
   },
   plugins: [],
-} 
+}

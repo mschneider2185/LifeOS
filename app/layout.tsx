@@ -7,53 +7,32 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Mind Map Pro - Personality-Driven Growth Platform',
-  description: 'Transform your personality insights into actionable growth strategies. Get personalized reports, sprint guides, and strategic planners to achieve your personal and professional goals.',
-  keywords: 'personality development, personal growth, MBTI, DISC, goal achievement, self-improvement, personality test, growth strategies',
-  authors: [{ name: 'Mind Map Pro Team' }],
-  creator: 'Mind Map Pro',
-  publisher: 'Mind Map Pro',
+  title: 'LifeOS — Your life, configured to your brain',
+  description: 'Take a 5-minute personality assessment. LifeOS configures itself to match how you actually work — WIP limits, coaching style, burnout detection, and more.',
+  keywords: 'personality assessment, life management, MBTI, DISC, Big Five, productivity, burnout detection',
+  authors: [{ name: 'Michael Schneider' }],
+  creator: 'LifeOS',
+  publisher: 'LifeOS',
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://mindmappro.com'),
   openGraph: {
-    title: 'Mind Map Pro - Personality-Driven Growth Platform',
-    description: 'Transform your personality insights into actionable growth strategies.',
-    url: 'https://mindmappro.com',
-    siteName: 'Mind Map Pro',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Mind Map Pro - Personality-Driven Growth Platform',
-      },
-    ],
+    title: 'LifeOS — Your life, configured to your brain',
+    description: 'Take a 5-minute personality assessment. LifeOS configures itself to match how you actually work.',
+    siteName: 'LifeOS',
     locale: 'en_US',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Mind Map Pro - Personality-Driven Growth Platform',
-    description: 'Transform your personality insights into actionable growth strategies.',
-    images: ['/og-image.jpg'],
+    title: 'LifeOS — Your life, configured to your brain',
+    description: 'Take a 5-minute personality assessment. LifeOS configures itself to match how you actually work.',
   },
   robots: {
     index: true,
     follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
-  },
-  verification: {
-    google: 'your-google-verification-code',
   },
 }
 

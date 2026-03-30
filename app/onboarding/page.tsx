@@ -165,7 +165,7 @@ export default function OnboardingPage() {
           </Link>
           <div className="flex items-center space-x-2">
             <Brain className="h-8 w-8 text-primary-600" />
-            <span className="text-2xl font-bold gradient-text">Mind Map Pro</span>
+            <span className="text-2xl font-bold gradient-text">LifeOS</span>
           </div>
         </div>
       </header>
