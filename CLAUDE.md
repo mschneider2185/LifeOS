@@ -115,11 +115,60 @@ npm run type-check   # TypeScript check
 - Utils/hooks: camelCase (`usePersonalityConfig.ts`, `calculateWipLimit.ts`)
 - Types: PascalCase (`Project`, `DailyCheckIn`, `PersonalityProfile`)
 
+## Notion Integration
+
+### Architecture
+Notion serves as a secondary data layer alongside Supabase. API routes in `app/api/notion/` handle all Notion API communication server-side. The Notion SDK (`@notionhq/client`) is used exclusively in server code — no client-side Notion calls.
+
+### Database IDs
+| Database       | ID                                 | Maps to                        |
+|----------------|------------------------------------|--------------------------------|
+| Check-ins      | `be279e07e4494391936c8134f0d053d4` | Daily 30-second check-ins      |
+| Goals          | `17f3f35170e04ce2911fcb76182ba62f` | Goals with consequence framing |
+| Projects       | `7254b157403c4640acae675505cc409d` | Project tracker with WIP limits|
+| Tasks          | `2d3e7ce2e2a080329387eddaa6263ee3` | Task management                |
+| Health         | `4e8edb28aaaf4486890d5245731f0db2` | Health & wellness tracking     |
+| Brain Dump     | `331e7ce2e2a0814c94eef2d3a18a8a87` | Zero-friction capture (page)   |
+
+### Setup
+1. Create integration at [notion.so/my-integrations](https://www.notion.so/my-integrations)
+2. Share each database/page with the integration
+3. Add `NOTION_API_KEY` to `.env.local`
+4. See `scripts/setup-notion.md` for the full step-by-step guide
+
+### Parallel Development Workflow
+| Role             | Owns                                                        |
+|------------------|-------------------------------------------------------------|
+| **Backend Dev**  | `app/api/notion/`, `lib/notion.ts` — API routes & SDK layer |
+| **DevOps**       | `.env.example`, `next.config.js`, `vercel.json`, `.gitignore`, `scripts/` — config & deployment |
+| **Frontend Dev** | `app/*/page.tsx`, `components/` — UI components that call the API routes |
+
+Do NOT cross boundaries without coordinating. Backend owns the Notion SDK integration; Frontend consumes it via fetch to `/api/notion/*`.
+
 ## Environment Variables
 
 ```
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=<from .env.local>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<from .env.local>
+SUPABASE_SERVICE_ROLE_KEY=<from .env.local>
+
+# Stripe
 STRIPE_SECRET_KEY=<existing>
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=<existing>
+STRIPE_WEBHOOK_SECRET=<existing>
+
+# Notion (server-only — no NEXT_PUBLIC_ prefix)
+NOTION_API_KEY=<from notion.so/my-integrations>
+NOTION_CHECKIN_DB=be279e07e4494391936c8134f0d053d4
+NOTION_GOALS_DB=17f3f35170e04ce2911fcb76182ba62f
+NOTION_PROJECTS_DB=7254b157403c4640acae675505cc409d
+NOTION_TASKS_DB=2d3e7ce2e2a080329387eddaa6263ee3
+NOTION_HEALTH_DB=4e8edb28aaaf4486890d5245731f0db2
+NOTION_BRAINDUMP_PAGE=331e7ce2e2a0814c94eef2d3a18a8a87
+
+# App
+NEXT_PUBLIC_APP_URL=<your deployed URL>
 ```
+
+See `.env.example` for a copyable template with setup instructions.
