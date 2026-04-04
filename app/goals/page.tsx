@@ -4,9 +4,11 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { GlassCard, ProgressRing, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
-import type { Goal, GoalStatus, LifeArea, NotionListResponse, NotionCreateResponse } from '@/types/notion';
+import type { Goal, GoalStatus, LifeArea, Quarter, NotionListResponse, NotionCreateResponse } from '@/types/notion';
 
 const STATUS_FLOW: GoalStatus[] = ['Not started', 'In progress', 'Done'];
+const LIFE_AREAS: LifeArea[] = ['Career/Projects', 'Health', 'Finance', 'Family', 'Personal Growth'];
+const QUARTERS: Quarter[] = ['Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026'];
 
 const stagger = {
   hidden: { opacity: 0, y: 10 },
@@ -199,6 +201,145 @@ function SaveIndicator({ saving, saved }: { saving: boolean; saved: boolean }) {
   );
 }
 
+// ---- New goal form ----
+
+function NewGoalForm({
+  creating,
+  error,
+  onSubmit,
+  onCancel,
+}: {
+  creating: boolean;
+  error: string | null;
+  onSubmit: (data: Record<string, unknown>) => void;
+  onCancel: () => void;
+}) {
+  const [goal, setGoal] = useState('');
+  const [lifeArea, setLifeArea] = useState<LifeArea>('Career/Projects');
+  const [quarter, setQuarter] = useState<Quarter>('Q2 2026');
+  const [consequence, setConsequence] = useState('');
+  const [kr1, setKr1] = useState('');
+  const [kr2, setKr2] = useState('');
+  const [kr3, setKr3] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+
+  return (
+    <GlassCard>
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-white">New Goal</p>
+
+        <input
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          placeholder="What do you want to achieve?"
+          className="w-full text-sm bg-white/5 border border-lifeos-border rounded-lg px-3 py-2 text-white placeholder-lifeos-text-muted outline-none focus:border-lifeos-cyan"
+          autoFocus
+        />
+
+        {/* Consequence framing — required */}
+        <div>
+          <label className="text-[10px] text-danger block mb-1">
+            What happens if you DON&apos;T do this? *
+          </label>
+          <textarea
+            value={consequence}
+            onChange={(e) => setConsequence(e.target.value)}
+            placeholder="Be honest with yourself..."
+            rows={2}
+            className="w-full text-sm bg-danger/5 border border-danger/20 rounded-lg px-3 py-2 text-white placeholder-lifeos-text-muted outline-none focus:border-danger/50 resize-none"
+          />
+        </div>
+
+        {/* Life area + Quarter + Target date */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div>
+            <label className="text-[10px] text-lifeos-text-muted block mb-1">Life Area</label>
+            <select
+              value={lifeArea}
+              onChange={(e) => setLifeArea(e.target.value as LifeArea)}
+              className="w-full text-xs bg-white/5 border border-lifeos-border rounded-lg px-2 py-1.5 text-white outline-none focus:border-lifeos-cyan"
+            >
+              {LIFE_AREAS.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-lifeos-text-muted block mb-1">Quarter</label>
+            <select
+              value={quarter}
+              onChange={(e) => setQuarter(e.target.value as Quarter)}
+              className="w-full text-xs bg-white/5 border border-lifeos-border rounded-lg px-2 py-1.5 text-white outline-none focus:border-lifeos-cyan"
+            >
+              {QUARTERS.map((q) => (
+                <option key={q} value={q}>{q}</option>
+              ))}
+            </select>
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <label className="text-[10px] text-lifeos-text-muted block mb-1">Target Date</label>
+            <input
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              className="w-full text-xs bg-white/5 border border-lifeos-border rounded-lg px-2 py-1.5 text-white outline-none focus:border-lifeos-cyan"
+            />
+          </div>
+        </div>
+
+        {/* Key results */}
+        <div className="space-y-2">
+          <label className="text-[10px] text-lifeos-text-muted block">Key Results (optional)</label>
+          {[
+            { val: kr1, set: setKr1, ph: 'Key result 1' },
+            { val: kr2, set: setKr2, ph: 'Key result 2' },
+            { val: kr3, set: setKr3, ph: 'Key result 3' },
+          ].map((kr, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="text-lifeos-cyan text-xs">›</span>
+              <input
+                value={kr.val}
+                onChange={(e) => kr.set(e.target.value)}
+                placeholder={kr.ph}
+                className="flex-1 text-xs bg-white/5 border border-lifeos-border rounded px-2 py-1 text-white placeholder-lifeos-text-muted outline-none focus:border-lifeos-cyan"
+              />
+            </div>
+          ))}
+        </div>
+
+        {error && <p className="text-xs text-danger">{error}</p>}
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-xs text-lifeos-text-secondary hover:text-white transition-colors"
+            disabled={creating}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSubmit({
+              goal: goal.trim(),
+              status: 'Not started',
+              quarter,
+              lifeArea,
+              ifIDontDoThis: consequence.trim(),
+              keyResult1: kr1.trim() || undefined,
+              keyResult2: kr2.trim() || undefined,
+              keyResult3: kr3.trim() || undefined,
+              targetDate: targetDate || undefined,
+            })}
+            disabled={!goal.trim() || !consequence.trim() || creating}
+            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-lifeos-cyan text-lifeos-bg disabled:opacity-30 transition-opacity"
+          >
+            {creating ? 'Creating...' : 'Create Goal'}
+          </button>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
 // ---- Main page ----
 
 export default function GoalsPage() {
@@ -207,6 +348,9 @@ export default function GoalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [showForm, setShowForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -258,6 +402,29 @@ export default function GoalsPage() {
     [],
   );
 
+  const handleCreateGoal = async (formData: Record<string, unknown>) => {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch('/api/notion/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const json = (await res.json()) as NotionCreateResponse<Goal>;
+      if (json.success && json.data) {
+        setGoals((prev) => [...prev, json.data!]);
+        setShowForm(false);
+      } else {
+        setCreateError(json.error || 'Failed to create goal');
+      }
+    } catch {
+      setCreateError('Network error');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (loading) return <LoadingPulse />;
 
   if (error) {
@@ -286,6 +453,25 @@ export default function GoalsPage() {
         <p className="text-sm text-lifeos-text-secondary mt-1">
           What happens if you DON&apos;T follow through?
         </p>
+      </motion.div>
+
+      {/* New goal button + form */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
+        {!showForm ? (
+          <button
+            onClick={() => setShowForm(true)}
+            className="w-full text-sm text-lifeos-text-secondary hover:text-lifeos-cyan border border-dashed border-lifeos-border hover:border-lifeos-cyan/30 rounded-glass py-3 transition-colors"
+          >
+            + New Goal
+          </button>
+        ) : (
+          <NewGoalForm
+            creating={creating}
+            error={createError}
+            onSubmit={handleCreateGoal}
+            onCancel={() => { setShowForm(false); setCreateError(null); }}
+          />
+        )}
       </motion.div>
 
       {statusOrder.map((status, gi) => {

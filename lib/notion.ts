@@ -294,6 +294,62 @@ export async function getGoals(): Promise<Goal[]> {
   return results.map(parseGoal);
 }
 
+export async function createGoal(data: {
+  goal: string;
+  status?: GoalStatus;
+  quarter?: Quarter;
+  lifeArea?: LifeArea;
+  progressPercent?: number;
+  ifIDontDoThis?: string;
+  keyResult1?: string;
+  keyResult2?: string;
+  keyResult3?: string;
+  targetDate?: string;
+}): Promise<Goal> {
+  const properties: Record<string, unknown> = {
+    'Goal': { title: [{ text: { content: data.goal } }] },
+  };
+
+  if (data.status) {
+    properties['Status'] = { status: { name: data.status } };
+  }
+  if (data.quarter) {
+    properties['Quarter'] = { select: { name: data.quarter } };
+  }
+  if (data.lifeArea) {
+    properties['Life Area'] = { select: { name: data.lifeArea } };
+  }
+  if (data.progressPercent !== undefined) {
+    properties['Progress %'] = { number: data.progressPercent };
+  }
+  if (data.ifIDontDoThis) {
+    properties["If I DON'T Do This..."] = {
+      rich_text: [{ text: { content: data.ifIDontDoThis } }],
+    };
+  }
+  if (data.keyResult1) {
+    properties['Key Result 1'] = {
+      rich_text: [{ text: { content: data.keyResult1 } }],
+    };
+  }
+  if (data.keyResult2) {
+    properties['Key Result 2'] = {
+      rich_text: [{ text: { content: data.keyResult2 } }],
+    };
+  }
+  if (data.keyResult3) {
+    properties['Key Result 3'] = {
+      rich_text: [{ text: { content: data.keyResult3 } }],
+    };
+  }
+  if (data.targetDate) {
+    properties['Target Date'] = { date: { start: data.targetDate } };
+  }
+
+  const response = await createPage('NOTION_GOALS_DB', properties);
+  return parseGoal(response);
+}
+
 export async function updateGoal(
   pageId: string,
   data: {
