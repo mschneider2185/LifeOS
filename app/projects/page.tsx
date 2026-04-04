@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { GlassCard, WipGauge, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
-import type { Project, ProjectStatus, NotionListResponse } from '@/types/notion';
+import type { Project, ProjectStatus, NotionListResponse, NotionCreateResponse } from '@/types/notion';
 
 const WIP_LIMIT = 4;
+const STATUS_OPTIONS: ProjectStatus[] = ['Active', 'Maintenance', 'Parked'];
 
 const stagger = {
   hidden: { opacity: 0, y: 10 },
@@ -38,10 +39,142 @@ function groupByStatus(projects: Project[]): Record<string, Project[]> {
   return groups;
 }
 
+// ---- Inline-editable next action ----
+
+function EditableNextAction({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (val: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed !== value) onSave(trimmed);
+  };
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="text-xs text-lifeos-text-secondary hover:text-lifeos-cyan truncate text-left w-full transition-colors"
+        title="Click to edit next action"
+      >
+        {value ? `Next: ${value}` : '+ Add next action'}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') { setDraft(value); setEditing(false); }
+      }}
+      className="text-xs w-full bg-white/5 border border-lifeos-border-cyan rounded px-2 py-1 text-white outline-none focus:border-lifeos-cyan"
+      placeholder="Next action..."
+    />
+  );
+}
+
+// ---- Status dropdown ----
+
+function StatusDropdown({
+  current,
+  onSelect,
+}: {
+  current: ProjectStatus | string;
+  onSelect: (status: ProjectStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="transition-glass"
+        aria-label={`Change status from ${current}`}
+      >
+        <StatusBadge label={current} variant={statusVariant(current)} className="cursor-pointer hover:opacity-80" />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full mt-1 z-20 glass-card !p-1 min-w-[120px]"
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <button
+                key={s}
+                onClick={() => { onSelect(s); setOpen(false); }}
+                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                  s === current
+                    ? 'text-lifeos-cyan bg-lifeos-cyan-dim'
+                    : 'text-lifeos-text-secondary hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ---- Save indicator ----
+
+function SaveIndicator({ saving, saved }: { saving: boolean; saved: boolean }) {
+  return (
+    <AnimatePresence>
+      {(saving || saved) && (
+        <motion.span
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          className={`text-[10px] font-medium ${saving ? 'text-lifeos-text-muted' : 'text-lifeos-green'}`}
+        >
+          {saving ? 'Saving...' : '✓'}
+        </motion.span>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ---- Main page ----
+
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     async function load() {
@@ -59,18 +192,57 @@ export default function ProjectsPage() {
     load();
   }, []);
 
-  if (loading) return <><LoadingPulse /></>;
+  const patchProject = useCallback(
+    async (id: string, updates: Record<string, unknown>, optimistic: Partial<Project>) => {
+      // Optimistic update
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...optimistic } : p)),
+      );
+
+      // Show saving state
+      setSavingIds((prev) => new Set(prev).add(id));
+      setSavedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+
+      try {
+        const res = await fetch(`/api/notion/projects/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        const json = (await res.json()) as NotionCreateResponse<Project>;
+
+        if (!json.success) {
+          // Revert — refetch
+          const refetch = await fetch('/api/notion/projects');
+          const refetchJson = (await refetch.json()) as NotionListResponse<Project>;
+          if (refetchJson.data) setProjects(refetchJson.data);
+        } else {
+          // Show saved checkmark
+          setSavedIds((prev) => new Set(prev).add(id));
+          setTimeout(() => setSavedIds((prev) => { const n = new Set(prev); n.delete(id); return n; }), 1500);
+        }
+      } catch {
+        // Revert on network error
+        const refetch = await fetch('/api/notion/projects');
+        const refetchJson = (await refetch.json()) as NotionListResponse<Project>;
+        if (refetchJson.data) setProjects(refetchJson.data);
+      } finally {
+        setSavingIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      }
+    },
+    [],
+  );
+
+  if (loading) return <LoadingPulse />;
 
   if (error) {
     return (
-      <>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <GlassCard className="max-w-sm text-center">
-            <p className="text-danger text-sm">{error}</p>
-            <button onClick={() => window.location.reload()} className="btn-secondary text-sm mt-4">Retry</button>
-          </GlassCard>
-        </div>
-      </>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <GlassCard className="max-w-sm text-center">
+          <p className="text-danger text-sm">{error}</p>
+          <button onClick={() => window.location.reload()} className="btn-secondary text-sm mt-4">Retry</button>
+        </GlassCard>
+      </div>
     );
   }
 
@@ -78,97 +250,107 @@ export default function ProjectsPage() {
   const groups = groupByStatus(projects);
 
   return (
-    <>
-      <main className="max-w-4xl mx-auto px-4 py-8 sm:px-6">
-        {/* Header + WIP Gauge */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-white">Projects</h1>
-              <p className="text-sm text-text-secondary mt-1">
-                Manage your active work. WIP limit keeps you focused.
-              </p>
-            </div>
-            <div className="w-full sm:w-56">
-              <WipGauge active={activeCount} max={WIP_LIMIT} />
-            </div>
+    <main className="max-w-4xl mx-auto px-4 py-8 sm:px-6">
+      {/* Header + WIP Gauge */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">Projects</h1>
+            <p className="text-sm text-lifeos-text-secondary mt-1">
+              Manage your active work. WIP limit keeps you focused.
+            </p>
           </div>
-        </motion.div>
+          <div className="w-full sm:w-56">
+            <WipGauge active={activeCount} max={WIP_LIMIT} />
+          </div>
+        </div>
+      </motion.div>
 
-        {/* WIP warning */}
-        {activeCount > WIP_LIMIT && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6">
-            <GlassCard className="!border-danger/30 !bg-danger/5">
-              <p className="text-sm text-danger font-medium">
-                ⚠ You have {activeCount} active projects — {activeCount - WIP_LIMIT} over your WIP limit of {WIP_LIMIT}.
-                Park something to regain focus.
-              </p>
-            </GlassCard>
-          </motion.div>
-        )}
-
-        {/* Project groups */}
-        {(['Active', 'Maintenance', 'Parked'] as const).map((status, gi) => {
-          const items = groups[status];
-          if (items.length === 0) return null;
-
-          return (
-            <motion.div
-              key={status}
-              custom={gi}
-              initial="hidden"
-              animate="visible"
-              variants={stagger}
-              className="mb-8"
-            >
-              <SectionHeader
-                icon={status === 'Active' ? '▦' : status === 'Maintenance' ? '⚙' : '◻'}
-                title={status}
-                subtitle={`${items.length} project${items.length !== 1 ? 's' : ''}`}
-              />
-              <div className="space-y-3">
-                {items.map((project, i) => (
-                  <motion.div key={project.id} custom={i} initial="hidden" animate="visible" variants={stagger}>
-                    <GlassCard className="flex flex-col sm:flex-row sm:items-center gap-3">
-                      {/* Name + next action */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm font-medium text-white truncate">{project.projectName}</p>
-                          {project.tier && (
-                            <StatusBadge label={`T${project.tier}`} variant="purple" />
-                          )}
-                        </div>
-                        {project.nextAction && (
-                          <p className="text-xs text-text-secondary truncate">Next: {project.nextAction}</p>
-                        )}
-                      </div>
-
-                      {/* Meta badges */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {project.weeklyTimeCapHrs && (
-                          <span className="text-[11px] text-text-secondary">{project.weeklyTimeCapHrs}h/wk</span>
-                        )}
-                        <span
-                          className="inline-block w-2 h-2 rounded-full"
-                          style={{ backgroundColor: energyColor(project.energyLevel) }}
-                          title={`Energy: ${project.energyLevel}`}
-                        />
-                        <StatusBadge label={status} variant={statusVariant(status)} />
-                      </div>
-                    </GlassCard>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          );
-        })}
-
-        {projects.length === 0 && (
-          <GlassCard className="text-center py-12">
-            <p className="text-text-secondary text-sm">No projects found in Notion.</p>
+      {/* WIP warning */}
+      {activeCount > WIP_LIMIT && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6">
+          <GlassCard className="!border-danger/30 !bg-danger/5">
+            <p className="text-sm text-danger font-medium">
+              You have {activeCount} active projects — {activeCount - WIP_LIMIT} over your WIP limit of {WIP_LIMIT}.
+              Park something to regain focus.
+            </p>
           </GlassCard>
-        )}
-      </main>
-    </>
+        </motion.div>
+      )}
+
+      {/* Project groups */}
+      {(['Active', 'Maintenance', 'Parked'] as const).map((status, gi) => {
+        const items = groups[status];
+        if (items.length === 0) return null;
+
+        return (
+          <motion.div
+            key={status}
+            custom={gi}
+            initial="hidden"
+            animate="visible"
+            variants={stagger}
+            className="mb-8"
+          >
+            <SectionHeader
+              icon={status === 'Active' ? '▦' : status === 'Maintenance' ? '⚙' : '◻'}
+              title={status}
+              subtitle={`${items.length} project${items.length !== 1 ? 's' : ''}`}
+            />
+            <div className="space-y-3">
+              {items.map((project, i) => (
+                <motion.div key={project.id} custom={i} initial="hidden" animate="visible" variants={stagger}>
+                  <GlassCard className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    {/* Name + next action */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-sm font-medium text-white truncate">{project.projectName}</p>
+                        {project.tier && (
+                          <StatusBadge label={`T${project.tier}`} variant="purple" />
+                        )}
+                        <SaveIndicator
+                          saving={savingIds.has(project.id)}
+                          saved={savedIds.has(project.id)}
+                        />
+                      </div>
+                      <EditableNextAction
+                        value={project.nextAction}
+                        onSave={(val) =>
+                          patchProject(project.id, { nextAction: val }, { nextAction: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Meta badges */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {project.weeklyTimeCapHrs != null && (
+                        <span className="text-[11px] text-lifeos-text-secondary">{project.weeklyTimeCapHrs}h/wk</span>
+                      )}
+                      <span
+                        className="inline-block w-2 h-2 rounded-full"
+                        style={{ backgroundColor: energyColor(project.energyLevel) }}
+                        title={`Energy: ${project.energyLevel}`}
+                      />
+                      <StatusDropdown
+                        current={project.status}
+                        onSelect={(s) =>
+                          patchProject(project.id, { status: s }, { status: s })
+                        }
+                      />
+                    </div>
+                  </GlassCard>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        );
+      })}
+
+      {projects.length === 0 && (
+        <GlassCard className="text-center py-12">
+          <p className="text-lifeos-text-secondary text-sm">No projects found in Notion.</p>
+        </GlassCard>
+      )}
+    </main>
   );
 }

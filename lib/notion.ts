@@ -301,6 +301,53 @@ export async function getProjects(): Promise<Project[]> {
   return results.map(parseProject);
 }
 
+export async function updateProject(
+  pageId: string,
+  data: {
+    status?: string;
+    nextAction?: string;
+    weeklyTimeCap?: number;
+    tier?: number;
+    energyLevel?: string;
+    notes?: string;
+  },
+): Promise<Project> {
+  const properties: Record<string, unknown> = {};
+
+  if (data.status !== undefined) {
+    properties['Status (Active/Maintenance/Parked)'] = {
+      rich_text: [{ text: { content: data.status } }],
+    };
+  }
+  if (data.nextAction !== undefined) {
+    properties['Next Action'] = {
+      rich_text: [{ text: { content: data.nextAction } }],
+    };
+  }
+  if (data.weeklyTimeCap !== undefined) {
+    properties['Weekly Time Cap (hrs)'] = { number: data.weeklyTimeCap };
+  }
+  if (data.tier !== undefined) {
+    properties['Tier (1/2/3)'] = { number: data.tier };
+  }
+  if (data.energyLevel !== undefined) {
+    properties['Energy Level (Low/Medium/Deep)'] = {
+      rich_text: [{ text: { content: data.energyLevel } }],
+    };
+  }
+  if (data.notes !== undefined) {
+    properties['Notes'] = {
+      rich_text: [{ text: { content: data.notes } }],
+    };
+  }
+
+  const response = await notionFetch(`/pages/${pageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ properties }),
+  });
+  return parseProject(response);
+}
+
 export async function getTasks(statusFilter?: string): Promise<Task[]> {
   const opts: Parameters<typeof queryDatabase>[1] = {
     page_size: 100,
