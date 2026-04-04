@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { AppShell } from '@/components/nav/AppShell';
+
 import { ReviewWizard, type ReviewData } from '@/components/weekly-review/ReviewWizard';
 import { ReviewHistory } from '@/components/weekly-review/ReviewHistory';
 import type { WeeklyReview } from '@/types/lifeos';
@@ -104,16 +104,16 @@ export default function WeeklyReviewPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <>
       <div className="min-h-screen bg-dark-bg flex items-center justify-center">
         <div className="spinner h-8 w-8" />
       </div>
-      </AppShell>
+      </>
     );
   }
 
   return (
-    <AppShell>
+    <>
     <main className="min-h-screen bg-dark-bg">
       <div className="max-w-lg mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
@@ -146,6 +146,6 @@ export default function WeeklyReviewPage() {
         )}
       </div>
     </main>
-    </AppShell>
+    </>
   );
 }

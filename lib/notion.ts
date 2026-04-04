@@ -1,6 +1,3 @@
-import { Client, isFullPage } from '@notionhq/client';
-import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints/common';
-import type { QueryDataSourceParameters } from '@notionhq/client/build/src/api-endpoints/data-sources';
 import type {
   CheckIn,
   Goal,
@@ -22,88 +19,151 @@ import type {
   ProjectEnergyLevel,
 } from '@/types/notion';
 
-// --- Singleton Client ---
+// ============================================================
+// Notion REST API client (direct fetch, no SDK version issues)
+// ============================================================
 
-let notionClient: Client | null = null;
+const NOTION_API = 'https://api.notion.com/v1';
+const NOTION_VERSION = '2022-06-28';
 
-function getNotionClient(): Client {
-  if (notionClient) return notionClient;
-  const apiKey = process.env.NOTION_API_KEY;
-  if (!apiKey) {
-    throw new Error('NOTION_API_KEY environment variable is not set');
+export class NotionConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NotionConfigError';
   }
-  notionClient = new Client({ auth: apiKey });
-  return notionClient;
 }
 
-// --- Database IDs ---
+function getApiKey(): string {
+  const key = process.env.NOTION_API_KEY;
+  if (!key) {
+    throw new NotionConfigError(
+      'NOTION_API_KEY is not configured. Add it to .env.local and restart the dev server.'
+    );
+  }
+  return key;
+}
 
-const DB_IDS = {
-  checkins: 'be279e07e4494391936c8134f0d053d4',
-  goals: '17f3f35170e04ce2911fcb76182ba62f',
-  projects: '7254b157403c4640acae675505cc409d',
-  tasks: '2d3e7ce2e2a080329387eddaa6263ee3',
-  health: '4e8edb28aaaf4486890d5245731f0db2',
-  braindumpPage: '331e7ce2e2a0814c94eef2d3a18a8a87',
-} as const;
+function getDbId(envKey: string): string {
+  const id = process.env[envKey];
+  if (!id) {
+    throw new NotionConfigError(
+      `${envKey} is not set. Add it to .env.local and restart the dev server.`
+    );
+  }
+  return id;
+}
 
-// --- Property Extraction Helpers ---
+async function notionFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${NOTION_API}${endpoint}`, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${getApiKey()}`,
+      'Content-Type': 'application/json',
+      'Notion-Version': NOTION_VERSION,
+      ...options.headers,
+    },
+  });
 
-type Properties = PageObjectResponse['properties'];
-type PropertyValue = Properties[string];
+  const body = await res.json();
 
-function getRichText(prop: PropertyValue | undefined): string {
+  if (!res.ok) {
+    const msg = body?.message || `Notion API error ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return body;
+}
+
+async function queryDatabase(
+  dbEnvKey: string,
+  opts: {
+    sorts?: Array<{ property?: string; timestamp?: string; direction: string }>;
+    filter?: Record<string, unknown>;
+    page_size?: number;
+  } = {},
+): Promise<any[]> {
+  const dbId = getDbId(dbEnvKey);
+  const body: Record<string, unknown> = {};
+  if (opts.sorts) body.sorts = opts.sorts;
+  if (opts.filter) body.filter = opts.filter;
+  if (opts.page_size) body.page_size = opts.page_size;
+
+  const result = await notionFetch(`/databases/${dbId}/query`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+  return result.results || [];
+}
+
+async function createPage(
+  dbEnvKey: string,
+  properties: Record<string, unknown>,
+): Promise<any> {
+  const dbId = getDbId(dbEnvKey);
+  return notionFetch('/pages', {
+    method: 'POST',
+    body: JSON.stringify({
+      parent: { database_id: dbId },
+      properties,
+    }),
+  });
+}
+
+// ============================================================
+// Property Extraction Helpers
+// ============================================================
+
+function getRichText(prop: any): string {
   if (!prop || prop.type !== 'rich_text') return '';
-  return prop.rich_text
-    .map((t) => t.plain_text)
-    .join('');
+  return (prop.rich_text || []).map((t: any) => t.plain_text).join('');
 }
 
-function getTitle(prop: PropertyValue | undefined): string {
+function getTitle(prop: any): string {
   if (!prop || prop.type !== 'title') return '';
-  return prop.title
-    .map((t) => t.plain_text)
-    .join('');
+  return (prop.title || []).map((t: any) => t.plain_text).join('');
 }
 
-function getNumber(prop: PropertyValue | undefined): number | null {
+function getNumber(prop: any): number | null {
   if (!prop || prop.type !== 'number') return null;
   return prop.number;
 }
 
-function getCheckbox(prop: PropertyValue | undefined): boolean {
+function getCheckbox(prop: any): boolean {
   if (!prop || prop.type !== 'checkbox') return false;
   return prop.checkbox;
 }
 
-function getSelect(prop: PropertyValue | undefined): string | null {
+function getSelect(prop: any): string | null {
   if (!prop || prop.type !== 'select' || !prop.select) return null;
   return prop.select.name;
 }
 
-function getStatus(prop: PropertyValue | undefined): string | null {
+function getStatus(prop: any): string | null {
   if (!prop || prop.type !== 'status' || !prop.status) return null;
   return prop.status.name;
 }
 
-function getDate(prop: PropertyValue | undefined): string | null {
+function getDate(prop: any): string | null {
   if (!prop || prop.type !== 'date' || !prop.date) return null;
   return prop.date.start;
 }
 
-function getMultiSelect(prop: PropertyValue | undefined): string[] {
+function getMultiSelect(prop: any): string[] {
   if (!prop || prop.type !== 'multi_select') return [];
-  return prop.multi_select.map((s) => s.name);
+  return (prop.multi_select || []).map((s: any) => s.name);
 }
 
-function getRelationIds(prop: PropertyValue | undefined): string[] {
+function getRelationIds(prop: any): string[] {
   if (!prop || prop.type !== 'relation') return [];
-  return prop.relation.map((r) => r.id);
+  return (prop.relation || []).map((r: any) => r.id);
 }
 
-// --- Page Parsers ---
+// ============================================================
+// Page Parsers
+// ============================================================
 
-function parseCheckIn(page: PageObjectResponse): CheckIn {
+function parseCheckIn(page: any): CheckIn {
   const p = page.properties;
   return {
     id: page.id,
@@ -120,7 +180,7 @@ function parseCheckIn(page: PageObjectResponse): CheckIn {
   };
 }
 
-function parseGoal(page: PageObjectResponse): Goal {
+function parseGoal(page: any): Goal {
   const p = page.properties;
   return {
     id: page.id,
@@ -138,7 +198,7 @@ function parseGoal(page: PageObjectResponse): Goal {
   };
 }
 
-function parseProject(page: PageObjectResponse): Project {
+function parseProject(page: any): Project {
   const p = page.properties;
   return {
     id: page.id,
@@ -152,7 +212,7 @@ function parseProject(page: PageObjectResponse): Project {
   };
 }
 
-function parseTask(page: PageObjectResponse): Task {
+function parseTask(page: any): Task {
   const p = page.properties;
   return {
     id: page.id,
@@ -166,7 +226,7 @@ function parseTask(page: PageObjectResponse): Task {
   };
 }
 
-function parseHealth(page: PageObjectResponse): HealthEntry {
+function parseHealth(page: any): HealthEntry {
   const p = page.properties;
   return {
     id: page.id,
@@ -182,18 +242,16 @@ function parseHealth(page: PageObjectResponse): HealthEntry {
   };
 }
 
-// --- Public Query Functions ---
+// ============================================================
+// Public Query Functions
+// ============================================================
 
 export async function getCheckIns(limit = 10): Promise<CheckIn[]> {
-  const notion = getNotionClient();
-  const response = await notion.dataSources.query({
-    data_source_id: DB_IDS.checkins,
+  const results = await queryDatabase('NOTION_CHECKIN_DB', {
     sorts: [{ timestamp: 'created_time', direction: 'descending' }],
     page_size: limit,
   });
-  return response.results
-    .filter(isFullPage)
-    .map(parseCheckIn);
+  return results.map(parseCheckIn);
 }
 
 export async function createCheckIn(data: {
@@ -208,111 +266,92 @@ export async function createCheckIn(data: {
   projectsTouched?: number;
   brainDumpUsed?: boolean;
 }): Promise<CheckIn> {
-  const notion = getNotionClient();
-  const response = await notion.pages.create({
-    parent: { database_id: DB_IDS.checkins },
-    properties: {
-      Date: { title: [{ text: { content: data.date } }] },
-      'Energy Level': { select: { name: data.energyLevel } },
-      'Stress Level': { select: { name: data.stressLevel } },
-      'Sleep (hrs)': { number: data.sleepHours },
-      Exercise: { checkbox: data.exercise },
-      'Top Win': {
-        rich_text: [{ text: { content: data.topWin ?? '' } }],
-      },
-      'Biggest Blocker': {
-        rich_text: [{ text: { content: data.biggestBlocker ?? '' } }],
-      },
-      'Mood Note': {
-        rich_text: [{ text: { content: data.moodNote ?? '' } }],
-      },
-      'Projects Touched': { number: data.projectsTouched ?? 0 },
-      'Brain Dump Used': { checkbox: data.brainDumpUsed ?? false },
+  const response = await createPage('NOTION_CHECKIN_DB', {
+    Date: { title: [{ text: { content: data.date } }] },
+    'Energy Level': { select: { name: data.energyLevel } },
+    'Stress Level': { select: { name: data.stressLevel } },
+    'Sleep (hrs)': { number: data.sleepHours },
+    Exercise: { checkbox: data.exercise },
+    'Top Win': {
+      rich_text: [{ text: { content: data.topWin ?? '' } }],
     },
+    'Biggest Blocker': {
+      rich_text: [{ text: { content: data.biggestBlocker ?? '' } }],
+    },
+    'Mood Note': {
+      rich_text: [{ text: { content: data.moodNote ?? '' } }],
+    },
+    'Projects Touched': { number: data.projectsTouched ?? 0 },
+    'Brain Dump Used': { checkbox: data.brainDumpUsed ?? false },
   });
-  return parseCheckIn(response as PageObjectResponse);
+  return parseCheckIn(response);
 }
 
 export async function getGoals(): Promise<Goal[]> {
-  const notion = getNotionClient();
-  const response = await notion.dataSources.query({
-    data_source_id: DB_IDS.goals,
+  const results = await queryDatabase('NOTION_GOALS_DB', {
     page_size: 100,
   });
-  return response.results
-    .filter(isFullPage)
-    .map(parseGoal);
+  return results.map(parseGoal);
 }
 
 export async function getProjects(): Promise<Project[]> {
-  const notion = getNotionClient();
-  const response = await notion.dataSources.query({
-    data_source_id: DB_IDS.projects,
+  const results = await queryDatabase('NOTION_PROJECTS_DB', {
     page_size: 100,
   });
-  return response.results
-    .filter(isFullPage)
-    .map(parseProject);
+  return results.map(parseProject);
 }
 
 export async function getTasks(statusFilter?: string): Promise<Task[]> {
-  const notion = getNotionClient();
-
-  const queryOptions: QueryDataSourceParameters = {
-    data_source_id: DB_IDS.tasks,
+  const opts: Parameters<typeof queryDatabase>[1] = {
     page_size: 100,
   };
 
   if (statusFilter) {
-    queryOptions.filter = {
+    opts.filter = {
       property: 'Status',
       status: { equals: statusFilter },
     };
   }
 
-  const response = await notion.dataSources.query(queryOptions);
-  return response.results
-    .filter(isFullPage)
-    .map(parseTask);
+  const results = await queryDatabase('NOTION_TASKS_DB', opts);
+  return results.map(parseTask);
 }
 
 export async function getHealthEntries(limit = 10): Promise<HealthEntry[]> {
-  const notion = getNotionClient();
-  const response = await notion.dataSources.query({
-    data_source_id: DB_IDS.health,
+  const results = await queryDatabase('NOTION_HEALTH_DB', {
     sorts: [{ timestamp: 'created_time', direction: 'descending' }],
     page_size: limit,
   });
-  return response.results
-    .filter(isFullPage)
-    .map(parseHealth);
+  return results.map(parseHealth);
 }
 
 export async function appendBrainDump(text: string): Promise<void> {
-  const notion = getNotionClient();
+  const blockId = getDbId('NOTION_BRAINDUMP_PAGE');
   const now = new Date().toISOString();
-  await notion.blocks.children.append({
-    block_id: DB_IDS.braindumpPage,
-    children: [
-      {
-        object: 'block',
-        type: 'divider',
-        divider: {},
-      },
-      {
-        object: 'block',
-        type: 'heading_3',
-        heading_3: {
-          rich_text: [{ type: 'text', text: { content: `Brain Dump — ${now}` } }],
+  await notionFetch(`/blocks/${blockId}/children`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      children: [
+        {
+          object: 'block',
+          type: 'divider',
+          divider: {},
         },
-      },
-      {
-        object: 'block',
-        type: 'paragraph',
-        paragraph: {
-          rich_text: [{ type: 'text', text: { content: text } }],
+        {
+          object: 'block',
+          type: 'heading_3',
+          heading_3: {
+            rich_text: [{ type: 'text', text: { content: `Brain Dump — ${now}` } }],
+          },
         },
-      },
-    ],
+        {
+          object: 'block',
+          type: 'paragraph',
+          paragraph: {
+            rich_text: [{ type: 'text', text: { content: text } }],
+          },
+        },
+      ],
+    }),
   });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getTasks } from '@/lib/notion';
+import { getTasks, NotionConfigError } from '@/lib/notion';
 import type { Task, NotionListResponse } from '@/types/notion';
 
 export async function GET(
@@ -7,11 +7,12 @@ export async function GET(
 ): Promise<NextResponse<NotionListResponse<Task>>> {
   try {
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') ?? undefined;
-    const data = await getTasks(status);
+    const statusFilter = searchParams.get('status') ?? undefined;
+    const data = await getTasks(statusFilter);
     return NextResponse.json({ data });
   } catch (err) {
+    const httpStatus = err instanceof NotionConfigError ? 503 : 500;
     const message = err instanceof Error ? err.message : 'Failed to fetch tasks';
-    return NextResponse.json({ data: [], error: message }, { status: 500 });
+    return NextResponse.json({ data: [], error: message }, { status: httpStatus });
   }
 }

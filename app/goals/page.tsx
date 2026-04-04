@@ -1,190 +1,180 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { AppShell } from '@/components/nav/AppShell';
-import { GoalList } from '@/components/goals/GoalList';
-import { GoalModal } from '@/components/goals/GoalModal';
-import type { UserGoal, LifeArea, KeyResult, SystemConfig } from '@/types/lifeos';
-import toast from 'react-hot-toast';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 
-interface GoalFormData {
-  title: string;
-  life_area: LifeArea | '';
-  quarter: string;
-  consequence_text: string;
-  target_date: string;
-  progress_pct: number;
-}
+import { GlassCard, ProgressRing, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
+import type { Goal, GoalStatus, LifeArea, NotionListResponse } from '@/types/notion';
 
-const DEFAULT_CONFIG: SystemConfig = {
-  wip_limit: 4,
-  brain_dump_enabled: true,
-  consequence_framing: false,
-  energy_matching: false,
-  burnout_detection: false,
-  auto_archive: false,
-  coaching_tone: 'coach',
-  financial_check_frequency: 'monthly',
-  show_daily_portfolio: false,
-  debt_framing: 'total_remaining',
-  logging_mode: 'quick_totals',
+const stagger = {
+  hidden: { opacity: 0, y: 10 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.05, duration: 0.35 },
+  }),
 };
 
+function lifeAreaVariant(area: LifeArea | null): 'cyan' | 'green' | 'orange' | 'red' | 'purple' {
+  switch (area) {
+    case 'Career/Projects': return 'cyan';
+    case 'Health': return 'green';
+    case 'Finance': return 'orange';
+    case 'Family': return 'red';
+    case 'Personal Growth': return 'purple';
+    default: return 'cyan';
+  }
+}
+
+function lifeAreaColor(area: LifeArea | null): string {
+  switch (area) {
+    case 'Career/Projects': return '#00d4ff';
+    case 'Health': return '#10b981';
+    case 'Finance': return '#f59e0b';
+    case 'Family': return '#ef4444';
+    case 'Personal Growth': return '#8b5cf6';
+    default: return '#00d4ff';
+  }
+}
+
+function groupByStatus(goals: Goal[]): Record<string, Goal[]> {
+  const groups: Record<string, Goal[]> = { 'In progress': [], 'Not started': [], 'Done': [] };
+  for (const g of goals) {
+    const key = g.status ?? 'Not started';
+    if (groups[key]) groups[key].push(g);
+    else groups['Not started'].push(g);
+  }
+  return groups;
+}
+
 export default function GoalsPage() {
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [goals, setGoals] = useState<UserGoal[]>([]);
-  const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_CONFIG);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingGoal, setEditingGoal] = useState<UserGoal | null>(null);
-
-  const fetchData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setUserId(user.id);
-
-    const [goalsRes, profileRes] = await Promise.all([
-      supabase
-        .from('user_goals')
-        .select('*')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('personality_profiles')
-        .select('system_config')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single(),
-    ]);
-
-    if (goalsRes.data) setGoals(goalsRes.data as UserGoal[]);
-    if (profileRes.data?.system_config) {
-      setSystemConfig(profileRes.data.system_config as SystemConfig);
-    }
-    setLoading(false);
-  }, []);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleSubmit = async (data: GoalFormData, keyResults: KeyResult[]) => {
-    if (!userId) return;
-
-    const payload = {
-      user_id: userId,
-      title: data.title,
-      goal_type: 'personal' as const,
-      life_area: (data.life_area || null) as LifeArea | null,
-      quarter: data.quarter || null,
-      consequence_text: data.consequence_text || null,
-      target_date: data.target_date || null,
-      progress_pct: data.progress_pct,
-      key_results: keyResults,
-      status: 'active' as const,
-    };
-
-    if (editingGoal) {
-      const { error } = await supabase
-        .from('user_goals')
-        .update(payload)
-        .eq('id', editingGoal.id);
-
-      if (error) {
-        toast.error('Failed to update goal');
-        return;
+    async function load() {
+      try {
+        const res = await fetch('/api/notion/goals');
+        const json = (await res.json()) as NotionListResponse<Goal>;
+        if (json.error) setError(json.error);
+        else setGoals(json.data);
+      } catch {
+        setError('Failed to load goals');
+      } finally {
+        setLoading(false);
       }
-      toast.success('Goal updated');
-    } else {
-      const { error } = await supabase.from('user_goals').insert(payload);
-
-      if (error) {
-        toast.error('Failed to create goal');
-        return;
-      }
-      toast.success('Goal created');
     }
+    load();
+  }, []);
 
-    setModalOpen(false);
-    setEditingGoal(null);
-    fetchData();
-  };
+  if (loading) return <><LoadingPulse /></>;
 
-  const handleComplete = async (goalId: string) => {
-    const { error } = await supabase
-      .from('user_goals')
-      .update({
-        status: 'completed',
-        progress_pct: 100,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', goalId);
-
-    if (error) {
-      toast.error('Failed to complete goal');
-    } else {
-      toast.success('Goal completed!');
-      fetchData();
-    }
-  };
-
-  if (loading) {
+  if (error) {
     return (
-      <AppShell>
-      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
-        <div className="spinner h-8 w-8" />
-      </div>
-      </AppShell>
+      <>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <GlassCard className="max-w-sm text-center">
+            <p className="text-danger text-sm">{error}</p>
+            <button onClick={() => window.location.reload()} className="btn-secondary text-sm mt-4">Retry</button>
+          </GlassCard>
+        </div>
+      </>
     );
   }
 
+  const groups = groupByStatus(goals);
+  const statusOrder: GoalStatus[] = ['In progress', 'Not started', 'Done'];
+  const statusIcons: Record<GoalStatus, string> = {
+    'In progress': '◎',
+    'Not started': '○',
+    'Done': '✓',
+  };
+
   return (
-    <AppShell>
-    <main className="min-h-screen bg-dark-bg">
-      <div className="max-w-4xl mx-auto px-4 py-8 sm:px-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">Goals</h1>
-            <p className="text-sm text-text-secondary mt-1">
-              {systemConfig.consequence_framing
-                ? 'What happens if you DON\u2019T follow through?'
-                : 'Track what matters to you.'}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              setEditingGoal(null);
-              setModalOpen(true);
-            }}
-            className="btn-primary text-sm !py-2.5 !px-5 self-start"
-          >
-            + Add Goal
-          </button>
-        </div>
+    <>
+      <main className="max-w-4xl mx-auto px-4 py-8 sm:px-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Goals</h1>
+          <p className="text-sm text-text-secondary mt-1">
+            What happens if you DON&apos;T follow through?
+          </p>
+        </motion.div>
 
-        <GoalList
-          goals={goals}
-          consequenceFraming={systemConfig.consequence_framing}
-          onEdit={(goal) => {
-            setEditingGoal(goal);
-            setModalOpen(true);
-          }}
-          onComplete={handleComplete}
-        />
+        {statusOrder.map((status, gi) => {
+          const items = groups[status];
+          if (items.length === 0) return null;
 
-        <GoalModal
-          isOpen={modalOpen}
-          onClose={() => {
-            setModalOpen(false);
-            setEditingGoal(null);
-          }}
-          onSubmit={handleSubmit}
-          goal={editingGoal}
-          consequenceFraming={systemConfig.consequence_framing}
-        />
-      </div>
-    </main>
-    </AppShell>
+          return (
+            <motion.div key={status} custom={gi} initial="hidden" animate="visible" variants={stagger} className="mb-8">
+              <SectionHeader
+                icon={statusIcons[status]}
+                title={status}
+                subtitle={`${items.length} goal${items.length !== 1 ? 's' : ''}`}
+              />
+              <div className="space-y-3">
+                {items.map((goal, i) => (
+                  <motion.div key={goal.id} custom={i} initial="hidden" animate="visible" variants={stagger}>
+                    <GlassCard>
+                      <div className="flex items-start gap-4">
+                        {/* Progress ring */}
+                        <ProgressRing
+                          percent={goal.progressPercent ?? 0}
+                          size={48}
+                          strokeWidth={4}
+                          color={lifeAreaColor(goal.lifeArea)}
+                        />
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <p className="text-sm font-medium text-white">{goal.goal}</p>
+                            {goal.lifeArea && (
+                              <StatusBadge label={goal.lifeArea} variant={lifeAreaVariant(goal.lifeArea)} />
+                            )}
+                            {goal.quarter && (
+                              <StatusBadge label={goal.quarter} variant="purple" />
+                            )}
+                          </div>
+
+                          {/* Consequence framing — red highlight */}
+                          {goal.ifIDontDoThis && (
+                            <div className="mt-2 p-2.5 rounded-lg bg-danger/10 border border-danger/20">
+                              <p className="text-xs text-danger">
+                                <span className="font-medium">If I don&apos;t:</span> {goal.ifIDontDoThis}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Key results */}
+                          {(goal.keyResult1 || goal.keyResult2 || goal.keyResult3) && (
+                            <div className="mt-2 space-y-1">
+                              {[goal.keyResult1, goal.keyResult2, goal.keyResult3]
+                                .filter(Boolean)
+                                .map((kr, ki) => (
+                                  <p key={ki} className="text-xs text-text-secondary flex items-start gap-1.5">
+                                    <span className="text-cyan-accent mt-0.5">›</span>
+                                    {kr}
+                                  </p>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          );
+        })}
+
+        {goals.length === 0 && (
+          <GlassCard className="text-center py-12">
+            <p className="text-text-secondary text-sm">No goals found in Notion.</p>
+          </GlassCard>
+        )}
+      </main>
+    </>
   );
 }

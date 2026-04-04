@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getHealthEntries } from '@/lib/notion';
+import { getHealthEntries, NotionConfigError } from '@/lib/notion';
 import type { HealthEntry, NotionListResponse } from '@/types/notion';
 
 export async function GET(): Promise<NextResponse<NotionListResponse<HealthEntry>>> {
@@ -7,7 +7,8 @@ export async function GET(): Promise<NextResponse<NotionListResponse<HealthEntry
     const data = await getHealthEntries(10);
     return NextResponse.json({ data });
   } catch (err) {
+    const status = err instanceof NotionConfigError ? 503 : 500;
     const message = err instanceof Error ? err.message : 'Failed to fetch health entries';
-    return NextResponse.json({ data: [], error: message }, { status: 500 });
+    return NextResponse.json({ data: [], error: message }, { status });
   }
 }

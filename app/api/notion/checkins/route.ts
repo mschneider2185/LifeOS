@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCheckIns, createCheckIn } from '@/lib/notion';
+import { getCheckIns, createCheckIn, NotionConfigError } from '@/lib/notion';
 import type {
   CheckIn,
   CreateCheckInBody,
@@ -30,8 +30,9 @@ export async function GET(): Promise<NextResponse<NotionListResponse<CheckIn>>> 
     const data = await getCheckIns(10);
     return NextResponse.json({ data });
   } catch (err) {
+    const status = err instanceof NotionConfigError ? 503 : 500;
     const message = err instanceof Error ? err.message : 'Failed to fetch check-ins';
-    return NextResponse.json({ data: [], error: message }, { status: 500 });
+    return NextResponse.json({ data: [], error: message }, { status });
   }
 }
 
@@ -98,7 +99,8 @@ export async function POST(
 
     return NextResponse.json({ success: true, data });
   } catch (err) {
+    const status = err instanceof NotionConfigError ? 503 : 500;
     const message = err instanceof Error ? err.message : 'Failed to create check-in';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

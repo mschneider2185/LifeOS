@@ -2,12 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap');
-
 /* ============================================================
-   LifeOS Design Tokens (CSS Custom Properties)
+   LifeOS Design System — CSS Custom Properties
    ============================================================ */
 :root {
+  /* Core palette */
+  --lifeos-bg: #0a0a0f;
+  --lifeos-surface: rgba(255, 255, 255, 0.05);
+  --lifeos-surface-hover: rgba(255, 255, 255, 0.08);
+  --lifeos-border: rgba(255, 255, 255, 0.1);
+  --lifeos-border-hover: rgba(255, 255, 255, 0.2);
+
+  /* Accent colors */
+  --lifeos-cyan: #00d4ff;
+  --lifeos-cyan-dim: rgba(0, 212, 255, 0.15);
+  --lifeos-cyan-glow: rgba(0, 212, 255, 0.3);
+  --lifeos-purple: #8b5cf6;
+  --lifeos-purple-dim: rgba(139, 92, 246, 0.15);
+  --lifeos-purple-glow: rgba(139, 92, 246, 0.3);
+
+  /* Semantic colors */
+  --lifeos-success: #10b981;
+  --lifeos-warning: #f59e0b;
+  --lifeos-danger: #ef4444;
+
+  /* Text */
+  --lifeos-text: #e2e8f0;
+  --lifeos-text-secondary: #94a3b8;
+  --lifeos-text-muted: #64748b;
+
+  /* Glass */
+  --lifeos-glass-blur: 20px;
+  --lifeos-radius: 16px;
+
+  /* Legacy compat (existing assessment pages reference these) */
   --color-bg: #0a0a0f;
   --color-surface: rgba(255, 255, 255, 0.05);
   --color-border: rgba(255, 255, 255, 0.1);
@@ -23,38 +51,106 @@
   --radius-card: 16px;
 }
 
+/* ============================================================
+   Base Styles
+   ============================================================ */
 @layer base {
   html {
-    font-family: 'Inter', system-ui, sans-serif;
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply bg-dark-bg text-white antialiased;
+    background-color: var(--lifeos-bg);
+    color: var(--lifeos-text);
+    min-height: 100vh;
+  }
+
+  /* Selection highlight */
+  ::selection {
+    background: rgba(0, 212, 255, 0.3);
+    color: #ffffff;
+  }
+
+  /* Placeholder text */
+  ::placeholder {
+    color: var(--lifeos-text-muted);
+    opacity: 1;
+  }
+
+  /* Custom scrollbar — thin, subtle */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  /* Input / textarea focus glow */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--lifeos-cyan) !important;
+    box-shadow: 0 0 0 3px var(--lifeos-cyan-dim), 0 0 20px var(--lifeos-cyan-glow);
+  }
+
+  /* Custom checkbox */
+  input[type='checkbox'] {
+    accent-color: var(--lifeos-cyan);
   }
 }
 
+/* ============================================================
+   Component Classes
+   ============================================================ */
 @layer components {
-  /* LifeOS Glass Card */
+  /* Glass card */
   .glass-card {
-    background: var(--color-surface);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    padding: 24px;
+    background: var(--lifeos-surface);
+    backdrop-filter: blur(var(--lifeos-glass-blur));
+    -webkit-backdrop-filter: blur(var(--lifeos-glass-blur));
+    border: 1px solid var(--lifeos-border);
+    border-radius: var(--lifeos-radius);
   }
 
   .glass-card:hover {
-    border-color: var(--color-border-hover);
+    border-color: var(--lifeos-border-hover);
   }
 
-  /* LifeOS Buttons */
+  /* Glow effects */
+  .glow-cyan {
+    box-shadow: 0 0 20px var(--lifeos-cyan-glow), 0 0 60px rgba(0, 212, 255, 0.1);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px var(--lifeos-purple-glow), 0 0 60px rgba(139, 92, 246, 0.1);
+  }
+
+  /* Buttons */
   .btn-primary {
     @apply bg-cyan-accent hover:bg-cyan-accent/80 text-dark-bg font-medium py-3 px-6 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-accent/50 focus:ring-offset-2 focus:ring-offset-dark-bg;
   }
 
   .btn-secondary {
-    background: var(--color-surface);
+    background: var(--lifeos-surface);
     @apply hover:bg-white/10 text-white font-medium py-3 px-6 rounded-lg border border-glass-border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-accent/50 focus:ring-offset-2 focus:ring-offset-dark-bg;
   }
 
@@ -66,6 +162,7 @@
     @apply w-full px-4 py-3 rounded-lg transition-colors duration-200 bg-white/5 border border-glass-border text-white placeholder-text-secondary focus:ring-2 focus:ring-cyan-accent/50 focus:border-cyan-accent/50 focus:outline-none;
   }
 
+  /* Legacy card styles (keep for existing assessment pages) */
   .card {
     @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
   }
@@ -83,11 +180,15 @@
   }
 }
 
+/* ============================================================
+   Utility Classes
+   ============================================================ */
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
 
+  /* Hide scrollbar entirely */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -96,23 +197,48 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Smooth glass transition for hover effects */
+  .transition-glass {
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.3s ease;
+  }
 }
 
-/* Custom animations */
+/* ============================================================
+   Animations
+   ============================================================ */
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
 }
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
 
-/* Personality trait bars */
+@keyframes lifeos-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-lifeos-pulse {
+  animation: lifeos-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px var(--lifeos-cyan-glow); }
+  50% { box-shadow: 0 0 40px var(--lifeos-cyan-glow), 0 0 80px rgba(0, 212, 255, 0.1); }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* ============================================================
+   Legacy — Personality Assessment Styles (DO NOT REMOVE)
+   ============================================================ */
+
+/* Trait bars */
 .trait-bar {
   @apply relative h-3 bg-gray-200 rounded-full overflow-hidden;
 }
@@ -126,7 +252,7 @@
   @apply animate-spin rounded-full border-2 border-white/20 border-t-cyan-accent;
 }
 
-/* Progress indicators */
+/* Progress ring */
 .progress-ring {
   transform: rotate(-90deg);
 }
@@ -134,25 +260,6 @@
 .progress-ring-circle {
   transition: stroke-dashoffset 0.35s;
   transform-origin: 50% 50%;
-}
-
-/* Custom scrollbar (dark theme) */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 9999px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 9999px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
 }
 
 /* Big5 forced-choice slider */

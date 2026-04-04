@@ -1,10 +1,9 @@
 import React from 'react'
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
-
-const inter = Inter({ subsets: ['latin'] })
+import { LayoutShell } from '@/components/lifeos/LayoutShell'
 
 export const metadata: Metadata = {
   title: 'LifeOS — Your life, configured to your brain',
@@ -42,16 +41,18 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="h-full">
-      <body className={`${inter.className} h-full`}>
-        {children}
+    <html lang="en" className={`${GeistSans.variable} h-full`}>
+      <body className="font-sans h-full bg-dark-bg text-white antialiased">
+        <LayoutShell>{children}</LayoutShell>
         <Toaster
           position="top-right"
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#363636',
-              color: '#fff',
+              background: 'rgba(15, 15, 25, 0.9)',
+              color: '#e2e8f0',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              backdropFilter: 'blur(20px)',
             },
             success: {
               duration: 3000,

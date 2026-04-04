@@ -9,6 +9,26 @@ module.exports = {
     extend: {
       colors: {
         // LifeOS design tokens
+        lifeos: {
+          bg: '#0a0a0f',
+          surface: 'rgba(15, 15, 25, 0.7)',
+          'surface-hover': 'rgba(20, 20, 35, 0.85)',
+          cyan: '#00d4ff',
+          'cyan-dim': 'rgba(0, 212, 255, 0.15)',
+          'cyan-glow': 'rgba(0, 212, 255, 0.3)',
+          purple: '#8b5cf6',
+          'purple-dim': 'rgba(139, 92, 246, 0.15)',
+          'purple-glow': 'rgba(139, 92, 246, 0.3)',
+          red: '#ef4444',
+          orange: '#f59e0b',
+          green: '#10b981',
+          'text-primary': '#e2e8f0',
+          'text-secondary': '#94a3b8',
+          'text-muted': '#64748b',
+          border: 'rgba(255, 255, 255, 0.06)',
+          'border-cyan': 'rgba(0, 212, 255, 0.2)',
+        },
+        // Flat aliases (used by existing .btn-primary, .input-field, etc.)
         'dark-bg': '#0a0a0f',
         'glass-surface': 'rgba(255, 255, 255, 0.05)',
         'glass-border': 'rgba(255, 255, 255, 0.1)',
@@ -59,8 +79,14 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['var(--font-geist)', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-geist-sans)', 'Geist', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
         display: ['Poppins', 'system-ui', 'sans-serif'],
+      },
+      backdropBlur: {
+        glass: '20px',
+      },
+      borderRadius: {
+        glass: '16px',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',

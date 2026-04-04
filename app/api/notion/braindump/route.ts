@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { appendBrainDump } from '@/lib/notion';
+import { appendBrainDump, NotionConfigError } from '@/lib/notion';
 import type { BrainDumpBody, NotionCreateResponse } from '@/types/notion';
 
 export async function POST(
@@ -18,7 +18,8 @@ export async function POST(
     await appendBrainDump(body.text.trim());
     return NextResponse.json({ success: true, data: { appended: true } });
   } catch (err) {
+    const status = err instanceof NotionConfigError ? 503 : 500;
     const message = err instanceof Error ? err.message : 'Failed to append brain dump';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

@@ -1,110 +1,117 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { AppShell } from '@/components/nav/AppShell';
-import { DumpInput } from '@/components/brain-dump/DumpInput';
-import { DumpList } from '@/components/brain-dump/DumpList';
-import { TriagedList } from '@/components/brain-dump/TriagedList';
-import type { BrainDump, BrainDumpCategory } from '@/types/lifeos';
-import toast from 'react-hot-toast';
+import { useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+import { GlassCard } from '@/components/lifeos';
+import type { BrainDumpBody, NotionCreateResponse } from '@/types/notion';
 
 export default function BrainDumpPage() {
-  const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [untriaged, setUntriaged] = useState<BrainDump[]>([]);
-  const [triaged, setTriaged] = useState<BrainDump[]>([]);
+  const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setUserId(user.id);
+  const handleSubmit = useCallback(async () => {
+    if (!text.trim() || submitting) return;
+    setSubmitting(true);
 
-    const [untriagedRes, triagedRes] = await Promise.all([
-      supabase
-        .from('brain_dumps')
-        .select('*')
-        .eq('triaged', false)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('brain_dumps')
-        .select('*')
-        .eq('triaged', true)
-        .order('triaged_at', { ascending: false })
-        .limit(50),
-    ]);
+    try {
+      const body: BrainDumpBody = { text: text.trim() };
+      const res = await fetch('/api/notion/braindump', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json()) as NotionCreateResponse<{ appended: boolean }>;
+      if (json.success) {
+        setText('');
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2500);
+      }
+    } catch {
+      // silent
+    } finally {
+      setSubmitting(false);
+    }
+  }, [text, submitting]);
 
-    if (untriagedRes.data) setUntriaged(untriagedRes.data as BrainDump[]);
-    if (triagedRes.data) setTriaged(triagedRes.data as BrainDump[]);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleCapture = async (content: string) => {
-    if (!userId) return;
-
-    const { error } = await supabase.from('brain_dumps').insert({
-      user_id: userId,
-      content,
-      triaged: false,
-    });
-
-    if (error) {
-      toast.error('Failed to save');
-    } else {
-      toast.success('Captured!');
-      fetchData();
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
     }
   };
-
-  const handleTriage = async (id: string, category: NonNullable<BrainDumpCategory>) => {
-    const { error } = await supabase
-      .from('brain_dumps')
-      .update({
-        category,
-        triaged: true,
-        triaged_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-
-    if (error) {
-      toast.error('Failed to triage');
-    } else {
-      fetchData();
-    }
-  };
-
-  if (loading) {
-    return (
-      <AppShell>
-      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
-        <div className="spinner h-8 w-8" />
-      </div>
-      </AppShell>
-    );
-  }
 
   return (
-    <AppShell>
-    <main className="min-h-screen bg-dark-bg">
-      <div className="max-w-lg mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Brain Dump</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Type it out. Triage later.
-          </p>
-        </div>
+    <>
+      <main className="max-w-lg mx-auto px-4 py-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">Brain Dump</h1>
+          <p className="text-sm text-text-secondary mb-6">Type it out. Don&apos;t organize. Don&apos;t judge. Just dump.</p>
+        </motion.div>
 
-        <div className="space-y-6">
-          <DumpInput onSubmit={handleCapture} />
-          <DumpList dumps={untriaged} onTriage={handleTriage} />
-          <TriagedList dumps={triaged} />
-        </div>
-      </div>
-    </main>
-    </AppShell>
+        {/* Rule callout */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
+          <GlassCard glow="purple" className="mb-6 !py-4">
+            <p className="text-sm text-purple-accent font-medium">⚡ Brain Dump First</p>
+            <p className="text-xs text-text-secondary mt-1">
+              Feeling overwhelmed? Dump before you plan. Get it out of your head, then triage later.
+            </p>
+          </GlassCard>
+        </motion.div>
+
+        {/* Textarea */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <GlassCard noPadding>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="What's on your mind? Just start typing..."
+              className="w-full h-48 bg-transparent text-white placeholder-text-secondary p-5 resize-none focus:outline-none text-sm leading-relaxed"
+              autoFocus
+              aria-label="Brain dump text"
+            />
+            <div className="flex items-center justify-between px-5 py-3 border-t border-glass-border">
+              <span className="text-[11px] text-text-secondary">
+                {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter to save
+              </span>
+              <button
+                onClick={handleSubmit}
+                disabled={!text.trim() || submitting}
+                className="btn-primary text-sm !py-2 !px-5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Saving...' : 'Dump it'}
+              </button>
+            </div>
+          </GlassCard>
+        </motion.div>
+
+        {/* Success animation */}
+        <AnimatePresence>
+          {showSuccess && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -10 }}
+              className="mt-6"
+            >
+              <GlassCard glow="cyan" className="text-center py-8">
+                <motion.span
+                  className="text-4xl block mb-2"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: [0, 1.2, 1] }}
+                  transition={{ duration: 0.4 }}
+                >
+                  ✓
+                </motion.span>
+                <p className="text-sm font-medium text-cyan-accent">Captured in Notion</p>
+                <p className="text-xs text-text-secondary mt-1">Out of your head, into the system.</p>
+              </GlassCard>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+    </>
   );
 }

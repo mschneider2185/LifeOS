@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getProjects, getCheckIns, getHealthEntries, getGoals } from '@/lib/notion';
+import { getProjects, getCheckIns, getHealthEntries, getGoals, NotionConfigError } from '@/lib/notion';
 import type { DashboardData, NotionListResponse } from '@/types/notion';
 
 export async function GET(): Promise<NextResponse<NotionListResponse<DashboardData>>> {
@@ -28,7 +28,8 @@ export async function GET(): Promise<NextResponse<NotionListResponse<DashboardDa
 
     return NextResponse.json({ data: [dashboard] });
   } catch (err) {
+    const status = err instanceof NotionConfigError ? 503 : 500;
     const message = err instanceof Error ? err.message : 'Failed to fetch dashboard data';
-    return NextResponse.json({ data: [], error: message }, { status: 500 });
+    return NextResponse.json({ data: [], error: message }, { status });
   }
 }

@@ -1,301 +1,259 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
-import { AppShell } from '@/components/nav/AppShell';
-import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
-import { ProjectsPanel } from '@/components/dashboard/ProjectsPanel';
-import { CheckInPanel } from '@/components/dashboard/CheckInPanel';
-import { BrainDumpPanel } from '@/components/dashboard/BrainDumpPanel';
-import { GoalsPanel } from '@/components/dashboard/GoalsPanel';
-import { WeeklyReviewPanel } from '@/components/dashboard/WeeklyReviewPanel';
-import type {
-  Project,
-  PersonalityProfile,
-  DailyCheckIn,
-  BrainDump,
-  UserGoal,
-  WeeklyReview,
-  SystemConfig,
-  BurnoutLevel,
-  CoachingTone,
-} from '@/types/lifeos';
+import Link from 'next/link';
 
-const DEFAULT_CONFIG: SystemConfig = {
-  wip_limit: 4,
-  brain_dump_enabled: true,
-  consequence_framing: false,
-  energy_matching: false,
-  burnout_detection: false,
-  auto_archive: false,
-  coaching_tone: 'coach',
-  financial_check_frequency: 'monthly',
-  show_daily_portfolio: false,
-  debt_framing: 'total_remaining',
-  logging_mode: 'quick_totals',
-};
+import { GlassCard, WipGauge, ProgressRing, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
+import type { DashboardData, NotionListResponse, BurnoutWarning } from '@/types/notion';
 
-function computeBurnoutLevel(recentCheckins: DailyCheckIn[]): BurnoutLevel {
-  if (recentCheckins.length < 2) return 'green';
-
-  let lowSleepDays = 0;
-  let noExerciseDays = 0;
-
-  for (const c of recentCheckins) {
-    if (c.sleep_hours !== null && c.sleep_hours < 7) lowSleepDays++;
-    if (!c.exercise) noExerciseDays++;
-  }
-
-  if (lowSleepDays >= 3 && noExerciseDays >= 5) return 'red';
-  if (lowSleepDays >= 2 && noExerciseDays >= 3) return 'orange';
-  if (lowSleepDays >= 2 || noExerciseDays >= 4) return 'yellow';
-  return 'green';
-}
-
-function computeStreak(checkins: DailyCheckIn[]): number {
-  if (checkins.length === 0) return 0;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let streak = 0;
-
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
-    if (checkins.some((c) => c.date === dateStr)) {
-      streak++;
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
-
-const fadeIn = {
-  hidden: { opacity: 0, y: 12 },
+const stagger = {
+  hidden: { opacity: 0, y: 10 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.08, duration: 0.4, ease: 'easeOut' },
+    transition: { delay: i * 0.05, duration: 0.35, ease: 'easeOut' },
   }),
 };
 
+const WIP_LIMIT = 4;
+
+const quickActions = [
+  { href: '/brain-dump', label: 'Brain Dump', icon: '⚡', desc: 'Dump before you plan' },
+  { href: '/checkin', label: 'Check-in', icon: '✦', desc: '30 seconds. Go.' },
+  { href: '/goals', label: 'Goals', icon: '◎', desc: 'What matters now' },
+  { href: '/health', label: 'Health', icon: '♥', desc: 'Burnout radar' },
+];
+
+function burnoutColor(warning: BurnoutWarning | null): string {
+  if (!warning) return '#10b981';
+  if (warning.startsWith('Red')) return '#ef4444';
+  if (warning.startsWith('Orange')) return '#f59e0b';
+  if (warning.startsWith('Yellow')) return '#f59e0b';
+  return '#10b981';
+}
+
+function burnoutVariant(warning: BurnoutWarning | null): 'green' | 'orange' | 'red' {
+  if (!warning) return 'green';
+  if (warning.startsWith('Red')) return 'red';
+  if (warning.startsWith('Orange') || warning.startsWith('Yellow')) return 'orange';
+  return 'green';
+}
+
+function energyEmoji(level: string | null): string {
+  if (!level) return '—';
+  if (level.includes('Crashed')) return '🔴';
+  if (level.includes('Low')) return '🟠';
+  if (level.includes('Okay')) return '🟡';
+  if (level.includes('Good')) return '🟢';
+  if (level.includes('Peak')) return '🔵';
+  return '—';
+}
+
 export default function DashboardPage() {
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
-
-  // Data
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [profile, setProfile] = useState<PersonalityProfile | null>(null);
-  const [todayCheckIn, setTodayCheckIn] = useState<DailyCheckIn | null>(null);
-  const [recentCheckins, setRecentCheckins] = useState<DailyCheckIn[]>([]);
-  const [untriagedDumps, setUntriagedDumps] = useState<BrainDump[]>([]);
-  const [untriagedCount, setUntriagedCount] = useState(0);
-  const [activeGoals, setActiveGoals] = useState<UserGoal[]>([]);
-  const [latestReview, setLatestReview] = useState<WeeklyReview | null>(null);
-
-  const systemConfig = profile?.system_config ?? DEFAULT_CONFIG;
-  const coachingTone: CoachingTone = systemConfig.coaching_tone;
-  const wipLimit = profile?.wip_limit ?? systemConfig.wip_limit;
-  const burnoutLevel = computeBurnoutLevel(recentCheckins);
-  const streakDays = computeStreak(recentCheckins);
-
-  const fetchData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    setUserId(user.id);
-    setUserName(user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? null);
-
-    const today = new Date().toISOString().split('T')[0];
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split('T')[0];
-
-    const [
-      projectsRes,
-      profileRes,
-      todayCheckinRes,
-      recentCheckinsRes,
-      dumpsRes,
-      dumpsCountRes,
-      goalsRes,
-      reviewRes,
-    ] = await Promise.all([
-      supabase
-        .from('projects')
-        .select('*')
-        .eq('status', 'active')
-        .order('sort_order', { ascending: true }),
-      supabase
-        .from('personality_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single(),
-      supabase
-        .from('daily_checkins')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle(),
-      supabase
-        .from('daily_checkins')
-        .select('*')
-        .gte('date', sevenDaysAgo)
-        .order('date', { ascending: false }),
-      supabase
-        .from('brain_dumps')
-        .select('*')
-        .eq('triaged', false)
-        .order('created_at', { ascending: false })
-        .limit(3),
-      supabase
-        .from('brain_dumps')
-        .select('id', { count: 'exact', head: true })
-        .eq('triaged', false),
-      supabase
-        .from('user_goals')
-        .select('*')
-        .eq('status', 'active')
-        .order('progress_pct', { ascending: false })
-        .limit(3),
-      supabase
-        .from('weekly_reviews')
-        .select('*')
-        .order('week_of', { ascending: false })
-        .limit(1),
-    ]);
-
-    if (projectsRes.data) setProjects(projectsRes.data as Project[]);
-    if (profileRes.data) setProfile(profileRes.data as PersonalityProfile);
-    if (todayCheckinRes.data) setTodayCheckIn(todayCheckinRes.data as DailyCheckIn);
-    if (recentCheckinsRes.data) setRecentCheckins(recentCheckinsRes.data as DailyCheckIn[]);
-    if (dumpsRes.data) setUntriagedDumps(dumpsRes.data as BrainDump[]);
-    setUntriagedCount(dumpsCountRes.count ?? 0);
-    if (goalsRes.data) setActiveGoals(goalsRes.data as UserGoal[]);
-    if (reviewRes.data && reviewRes.data.length > 0) {
-      setLatestReview(reviewRes.data[0] as WeeklyReview);
-    }
-
-    setLoading(false);
-  }, []);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    async function load() {
+      try {
+        const res = await fetch('/api/notion/dashboard');
+        const json = (await res.json()) as NotionListResponse<DashboardData>;
+        if (json.error) {
+          setError(json.error);
+        } else if (json.data.length > 0) {
+          setData(json.data[0]);
+        }
+      } catch {
+        setError('Failed to load dashboard');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
 
   if (loading) {
     return (
-      <AppShell>
-      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
-        <div className="spinner h-8 w-8" />
-      </div>
-      </AppShell>
+      <>
+        <LoadingPulse />
+      </>
     );
   }
 
+  if (error || !data) {
+    return (
+      <>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <GlassCard glow="none" className="max-w-sm text-center">
+            <p className="text-danger text-sm">{error ?? 'No data available'}</p>
+            <button onClick={() => window.location.reload()} className="btn-secondary text-sm mt-4">
+              Retry
+            </button>
+          </GlassCard>
+        </div>
+      </>
+    );
+  }
+
+  const { activeProjectsCount, latestCheckIn, latestHealth, inProgressGoals } = data;
+
   return (
-    <AppShell>
-    <main className="min-h-screen bg-dark-bg">
-      <div className="max-w-[1400px] mx-auto px-4 py-6 sm:px-6">
-        <DashboardHeader
-          userName={userName}
-          coachingTone={coachingTone}
-          burnoutLevel={burnoutLevel}
-        />
+    <>
+      <main className="max-w-[1200px] mx-auto px-4 py-6 sm:px-6">
+        {/* Header */}
+        <motion.div custom={0} initial="hidden" animate="visible" variants={stagger} className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Command Center</h1>
+          <p className="text-sm text-text-secondary mt-1">Your LifeOS at a glance.</p>
+        </motion.div>
 
-        {/* 5-panel grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Top row: Projects, Check-in, Brain Dump (or Goals if dump hidden) */}
-
-          {/* Mobile order: check-in first (order-1 on mobile, order-2 on desktop) */}
-          <motion.div
-            className="order-2 md:order-1"
-            custom={0}
-            initial="hidden"
-            animate="visible"
-            variants={fadeIn}
-          >
-            <ProjectsPanel projects={projects} wipLimit={wipLimit} />
+        {/* WIP Gauge + Burnout Warning row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <motion.div custom={1} initial="hidden" animate="visible" variants={stagger}>
+            <GlassCard>
+              <WipGauge active={activeProjectsCount} max={WIP_LIMIT} />
+            </GlassCard>
           </motion.div>
 
-          <motion.div
-            className="order-1 md:order-2"
-            custom={1}
-            initial="hidden"
-            animate="visible"
-            variants={fadeIn}
-          >
-            <CheckInPanel
-              todayCheckIn={todayCheckIn}
-              streakDays={streakDays}
-              coachingTone={coachingTone}
-            />
-          </motion.div>
-
-          {systemConfig.brain_dump_enabled && userId ? (
-            <motion.div
-              className="order-3"
-              custom={2}
-              initial="hidden"
-              animate="visible"
-              variants={fadeIn}
-            >
-              <BrainDumpPanel
-                untriagedDumps={untriagedDumps}
-                untriagedCount={untriagedCount}
-                userId={userId}
-                onNewDump={fetchData}
-              />
-            </motion.div>
-          ) : (
-            // If brain dump disabled, move goals up to top row
-            <motion.div
-              className="order-3"
-              custom={2}
-              initial="hidden"
-              animate="visible"
-              variants={fadeIn}
-            >
-              <GoalsPanel
-                goals={activeGoals}
-                consequenceFraming={systemConfig.consequence_framing}
-              />
-            </motion.div>
-          )}
-
-          {/* Bottom row: Goals (if not already shown) + Weekly Review */}
-          {systemConfig.brain_dump_enabled && (
-            <motion.div
-              className="order-4 md:col-span-2"
-              custom={3}
-              initial="hidden"
-              animate="visible"
-              variants={fadeIn}
-            >
-              <GoalsPanel
-                goals={activeGoals}
-                consequenceFraming={systemConfig.consequence_framing}
-              />
-            </motion.div>
-          )}
-
-          <motion.div
-            className={`order-5 ${!systemConfig.brain_dump_enabled ? 'md:col-span-2' : ''}`}
-            custom={4}
-            initial="hidden"
-            animate="visible"
-            variants={fadeIn}
-          >
-            <WeeklyReviewPanel latestReview={latestReview} />
+          <motion.div custom={2} initial="hidden" animate="visible" variants={stagger}>
+            <GlassCard glow={latestHealth?.burnoutWarning?.startsWith('Red') ? 'none' : 'none'}>
+              <SectionHeader icon="♥" title="Burnout Radar" />
+              {latestHealth ? (
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: burnoutColor(latestHealth.burnoutWarning) }}
+                  />
+                  <StatusBadge
+                    label={latestHealth.burnoutWarning ?? 'Unknown'}
+                    variant={burnoutVariant(latestHealth.burnoutWarning)}
+                  />
+                  {latestHealth.stressTrend && (
+                    <span className="text-xs text-text-secondary ml-auto">
+                      Trend: {latestHealth.stressTrend}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-text-secondary">No health data yet</p>
+              )}
+            </GlassCard>
           </motion.div>
         </div>
-      </div>
-    </main>
-    </AppShell>
+
+        {/* Quick Actions */}
+        <motion.div custom={3} initial="hidden" animate="visible" variants={stagger} className="mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {quickActions.map((action) => (
+              <Link key={action.href} href={action.href}>
+                <GlassCard glow="cyan" className="text-center py-5 h-full">
+                  <span className="text-2xl block mb-2">{action.icon}</span>
+                  <span className="text-sm font-medium text-white block">{action.label}</span>
+                  <span className="text-[11px] text-text-secondary block mt-0.5">{action.desc}</span>
+                </GlassCard>
+              </Link>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Today's Check-in Snapshot */}
+        <motion.div custom={4} initial="hidden" animate="visible" variants={stagger} className="mb-6">
+          <GlassCard>
+            <SectionHeader
+              icon="✦"
+              title="Today's Check-in"
+              action={
+                !latestCheckIn ? (
+                  <Link href="/checkin" className="text-xs text-cyan-accent hover:underline">
+                    Check in now
+                  </Link>
+                ) : null
+              }
+            />
+            {latestCheckIn ? (
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
+                <div>
+                  <p className="text-2xl">{energyEmoji(latestCheckIn.energyLevel)}</p>
+                  <p className="text-[11px] text-text-secondary mt-1">Energy</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">{latestCheckIn.stressLevel?.split(' - ')[1] ?? '—'}</p>
+                  <p className="text-[11px] text-text-secondary mt-1">Stress</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">{latestCheckIn.sleepHours ?? '—'}h</p>
+                  <p className="text-[11px] text-text-secondary mt-1">Sleep</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">{latestCheckIn.exercise ? '✓' : '✗'}</p>
+                  <p className="text-[11px] text-text-secondary mt-1">Exercise</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white truncate">{latestCheckIn.topWin || '—'}</p>
+                  <p className="text-[11px] text-text-secondary mt-1">Top Win</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-text-secondary">No check-in today. <Link href="/checkin" className="text-cyan-accent hover:underline">Do it now</Link> — takes 30 seconds.</p>
+            )}
+          </GlassCard>
+        </motion.div>
+
+        {/* Active Goals */}
+        <motion.div custom={5} initial="hidden" animate="visible" variants={stagger}>
+          <GlassCard>
+            <SectionHeader
+              icon="◎"
+              title="Active Goals"
+              subtitle={`${inProgressGoals.length} in progress`}
+              action={
+                <Link href="/goals" className="text-xs text-cyan-accent hover:underline">
+                  View all
+                </Link>
+              }
+            />
+            {inProgressGoals.length > 0 ? (
+              <div className="space-y-3">
+                {inProgressGoals.map((goal, i) => (
+                  <motion.div
+                    key={goal.id}
+                    custom={i}
+                    initial="hidden"
+                    animate="visible"
+                    variants={stagger}
+                    className="flex items-center gap-4 py-2 border-b border-glass-border last:border-0"
+                  >
+                    <ProgressRing percent={goal.progressPercent ?? 0} size={40} strokeWidth={3} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{goal.goal}</p>
+                      {goal.ifIDontDoThis && (
+                        <p className="text-[11px] text-danger/80 truncate mt-0.5">
+                          If I don't: {goal.ifIDontDoThis}
+                        </p>
+                      )}
+                    </div>
+                    {goal.lifeArea && (
+                      <StatusBadge
+                        label={goal.lifeArea}
+                        variant={
+                          goal.lifeArea === 'Career/Projects' ? 'cyan'
+                            : goal.lifeArea === 'Health' ? 'green'
+                            : goal.lifeArea === 'Finance' ? 'orange'
+                            : goal.lifeArea === 'Family' ? 'red'
+                            : 'purple'
+                        }
+                      />
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-text-secondary">No goals in progress. <Link href="/goals" className="text-cyan-accent hover:underline">Set one</Link>.</p>
+            )}
+          </GlassCard>
+        </motion.div>
+      </main>
+    </>
   );
 }
