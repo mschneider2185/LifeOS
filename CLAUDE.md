@@ -172,3 +172,179 @@ NEXT_PUBLIC_APP_URL=<your deployed URL>
 ```
 
 See `.env.example` for a copyable template with setup instructions.
+
+## Sprint Backlog — Phase 1 MVP (Auto-Resume)
+
+**How this works:** When starting a new session, read this backlog. Pick the first task marked 🔲 and execute it fully. When done, mark it ✅, update the completion date, commit with message "sprint: [task description]", and then pick the next 🔲 task. Continue until you run out of context or the user stops you.
+
+**Deadline:** May 10, 2026
+**Kill criteria:** If Phase 1 isn't shipped and dogfooded by May 10, kill the project.
+
+**To start a session, the user just types:** `Continue the sprint.`
+
+---
+
+### Completed Tasks
+
+✅ **T01** — Notion API routes: GET endpoints for projects, goals, checkins, health, tasks, dashboard (2026-04-04)
+  - Files: `app/api/notion/*/route.ts`, `lib/notion.ts`, `types/notion.ts`
+
+✅ **T02** — DevOps config: .env.example, vercel.json, CLAUDE.md updates, scripts/setup-notion.md (2026-04-04)
+  - Files: `.env.example`, `vercel.json`, `next.config.js`, `.gitignore`, `scripts/`
+
+✅ **T03** — Frontend pages: Dashboard, Check-in, Brain Dump, Projects, Goals, Health, Weekly Review (2026-04-04)
+  - Files: `app/*/page.tsx`, `components/lifeos/*`
+
+✅ **T04** — Design system: globals.css, tailwind.config.js, constants, hooks (2026-04-04)
+  - Files: `app/globals.css`, `tailwind.config.js`, `lib/hooks/`, `lib/constants.ts`
+
+✅ **T05** — App shell: routing, sidebar, mobile nav, auth redirects (2026-04-04)
+  - Files: `app/layout.tsx`, `app/page.tsx`
+
+✅ **T06** — Debug Notion connection: env var reading, database sharing (2026-04-04)
+  - Files: `lib/notion.ts`
+
+---
+
+### Active Sprint — Week 2 (April 5-11)
+
+🔲 **T07** — Projects CRUD: Make projects editable from the app
+  - **Backend:** Create `app/api/notion/projects/[id]/route.ts` with PATCH handler
+    - Accept: `{ status, nextAction, weeklyTimeCap, tier, energyLevel, notes }`
+    - Map to Notion properties: "Status (Active/Maintenance/Parked)", "Next Action", "Weekly Time Cap (hrs)", "Tier (1/2/3)", "Energy Level (Low/Medium/Deep)", "Notes"
+    - Use `notion.pages.update()` with the page ID from the URL param
+  - **Frontend:** Update `app/projects/page.tsx`
+    - Add status dropdown on each project card (Active / Maintenance / Parked)
+    - Add inline-editable "Next Action" field (click to edit, blur/Enter to save)
+    - PATCH `/api/notion/projects/[id]` on change
+    - Optimistic UI: update local state immediately, revert on error
+    - Show brief save indicator (subtle checkmark or border flash, NOT a modal)
+  - **Files:** `app/api/notion/projects/[id]/route.ts`, `app/projects/page.tsx`
+  - **Test:** Change a project from Active to Parked in the app, verify it updates in Notion
+
+🔲 **T08** — Goals CRUD: Make goals editable from the app
+  - **Backend:** Create `app/api/notion/goals/[id]/route.ts` with PATCH handler
+    - Accept: `{ status, progressPercent, reviewNotes, keyResult1, keyResult2, keyResult3 }`
+    - Map to Notion properties: "Status", "Progress %", "Review Notes", "Key Result 1", "Key Result 2", "Key Result 3"
+  - **Frontend:** Update `app/goals/page.tsx`
+    - Add progress adjuster (slider or +10/-10 buttons) for Progress %
+    - Add status toggle: Not started → In progress → Done
+    - Inline-editable key results
+    - PATCH `/api/notion/goals/[id]` on change
+  - **Files:** `app/api/notion/goals/[id]/route.ts`, `app/goals/page.tsx`
+  - **Test:** Update goal progress to 60% in the app, verify in Notion
+
+🔲 **T09** — Tasks CRUD: Create and manage tasks from the app
+  - **Backend:** Add POST to `app/api/notion/tasks/route.ts`
+    - Accept: `{ task, status, effort, timeBlock, type, projectId }`
+    - Create page in Tasks database with Notion properties
+  - **Backend:** Create `app/api/notion/tasks/[id]/route.ts` with PATCH handler
+    - Accept: `{ status }` — toggle between Not started / Doing / Paused / Done
+  - **Frontend:** Create or update tasks section
+    - Show tasks grouped by status
+    - Quick-add input at top: type task name, Enter to create
+    - Click task to toggle status forward (Not started → Doing → Done)
+    - Show effort and time block tags
+  - **Files:** `app/api/notion/tasks/route.ts`, `app/api/notion/tasks/[id]/route.ts`, `app/projects/page.tsx` or `app/tasks/page.tsx`
+  - **Test:** Create a new task, mark it Done, verify in Notion
+
+🔲 **T10** — Create new projects from the app
+  - **Backend:** Add POST to `app/api/notion/projects/route.ts`
+    - Accept: `{ projectName, status, tier, weeklyTimeCap, energyLevel, nextAction, notes }`
+    - Enforce WIP limit: if active count >= 4 and status is "Active", return error with message
+  - **Frontend:** Add "New Project" button on projects page
+    - Modal or inline form with fields for name, tier, time cap, energy level
+    - WIP enforcement: disable "Active" status option if already at limit
+  - **Files:** `app/api/notion/projects/route.ts`, `app/projects/page.tsx`
+  - **Test:** Create a new project, verify WIP limit enforcement
+
+🔲 **T11** — Create new goals from the app
+  - **Backend:** Add POST to `app/api/notion/goals/route.ts`
+    - Accept: `{ goal, status, quarter, lifeArea, progressPercent, ifIDontDoThis, keyResult1, keyResult2, keyResult3, targetDate }`
+  - **Frontend:** Add "New Goal" button on goals page
+    - Form with: goal name, life area selector, quarter selector, consequence text, key results, target date
+    - Consequence framing field is required (prompt: "What happens if you DON'T do this?")
+  - **Files:** `app/api/notion/goals/route.ts`, `app/goals/page.tsx`
+
+🔲 **T12** — Vercel deployment
+  - Import `mschneider2185/LifeOS` repo in Vercel dashboard
+  - Add all env vars from `.env.local` to Vercel project settings
+  - Verify build succeeds and all routes work on the deployed URL
+  - Update `NEXT_PUBLIC_APP_URL` in Vercel env vars
+  - Test on mobile browser
+  - **Files:** None (manual Vercel dashboard task — but verify `vercel.json` and `next.config.js` are correct)
+
+🔲 **T13** — Mobile responsive polish
+  - Test every page at 375px width
+  - Fix any overflow, truncation, or touch target issues
+  - Ensure bottom nav works correctly on mobile
+  - Check-in form must be fully usable on phone (this is the #1 mobile use case)
+  - Brain dump textarea must be comfortable to type in on mobile
+  - **Files:** All `app/*/page.tsx` and `components/lifeos/*`
+
+🔲 **T14** — Auth guards on all LifeOS routes
+  - Wrap all productivity routes in auth check
+  - Redirect to `/` (login) if not authenticated
+  - Use existing Supabase auth from `lib/supabase.ts`
+  - Assessment routes (/mbti-test, /disc-test, /onboarding) keep their own auth flow
+  - **Files:** `app/dashboard/page.tsx`, `app/projects/page.tsx`, `app/checkin/page.tsx`, `app/brain-dump/page.tsx`, `app/goals/page.tsx`, `app/health/page.tsx`, `app/weekly-review/page.tsx` (or create a shared middleware/wrapper)
+
+🔲 **T15** — Loading states, error handling, empty states
+  - Every page: show skeleton or loading pulse while data fetches
+  - Every page: show user-friendly error message if API fails (not raw error)
+  - Every page: show helpful empty state if no data exists yet (e.g. "No check-ins yet. Log your first one →")
+  - Check-in form: show success state after submit, then redirect to dashboard
+  - Brain dump: show success animation after save
+  - **Files:** All `app/*/page.tsx`
+
+---
+
+### Week 3 Backlog (April 12-18) — Do NOT start until Week 2 is ✅
+
+🔲 **T16** — Burnout detection integration
+  - When check-in shows sleep < 7h for 2+ consecutive days AND exercise = false, auto-flag burnout warning
+  - Show warning badge on dashboard
+  - Calculate from check-in history, display on health page
+
+🔲 **T17** — Weekly review wizard
+  - 6-step guided flow: Wins → Blockers → Energy patterns → Goal review → Next week plan → Burnout check
+  - Pull data from that week's check-ins to pre-populate
+  - Save review to Notion
+
+🔲 **T18** — Onboarding flow update
+  - Add Big Five assessment to the pipeline: MBTI → DISC → Big Five → Dashboard
+  - After all assessments complete, run profile-to-config engine
+  - Store system_config in personality_profiles table
+  - Dashboard reads config and adjusts UI accordingly
+
+🔲 **T19** — Settings page
+  - View personality profile summary (DISC, MBTI, Big Five scores)
+  - View system config (WIP limit, coaching tone, burnout detection on/off)
+  - Allow manual override of WIP limit
+
+🔲 **T20** — Clean up dead code
+  - Remove old Mind Map Pro landing page components
+  - Remove unused routes and components
+  - Remove `database-setup.sql.sql` (double extension), `cleanup.ps1`, `gitignore-additions.txt`
+  - Rename package.json name from "mind-map-pro" to "lifeos" (if not done)
+
+---
+
+### Parallel Dev Rules
+
+| Role | Owns | Does NOT Touch |
+|------|------|---------------|
+| Backend Dev | `app/api/notion/`, `lib/notion.ts` | `components/`, page files |
+| Frontend Dev | `app/*/page.tsx`, `components/lifeos/` | `app/api/`, `lib/notion.ts` |
+| DevOps | `.env*`, `vercel.json`, `next.config.js`, `scripts/` | `app/`, `lib/`, `components/` |
+
+When two tasks touch different directories, they CAN run in parallel in separate Claude Code sessions.
+When two tasks touch the same files, they MUST run sequentially.
+
+### Anti-Scope-Creep Rules
+
+1. NO finance UI in Phase 1. Tables exist but UI doesn't.
+2. NO AI coaching. No Claude API calls for nudges. Phase 3.
+3. NO mobile app. Responsive web only.
+4. NO multi-user. Single user only.
+5. If a feature idea comes up that isn't on this backlog → check with the user before building it.
