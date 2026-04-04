@@ -348,6 +348,50 @@ export async function getProjects(): Promise<Project[]> {
   return results.map(parseProject);
 }
 
+export async function createProject(data: {
+  projectName: string;
+  status?: string;
+  tier?: number;
+  weeklyTimeCap?: number;
+  energyLevel?: string;
+  nextAction?: string;
+  notes?: string;
+}): Promise<Project> {
+  const properties: Record<string, unknown> = {
+    'Project Name': { title: [{ text: { content: data.projectName } }] },
+  };
+
+  if (data.status) {
+    properties['Status (Active/Maintenance/Parked)'] = {
+      rich_text: [{ text: { content: data.status } }],
+    };
+  }
+  if (data.tier !== undefined) {
+    properties['Tier (1/2/3)'] = { number: data.tier };
+  }
+  if (data.weeklyTimeCap !== undefined) {
+    properties['Weekly Time Cap (hrs)'] = { number: data.weeklyTimeCap };
+  }
+  if (data.energyLevel) {
+    properties['Energy Level (Low/Medium/Deep)'] = {
+      rich_text: [{ text: { content: data.energyLevel } }],
+    };
+  }
+  if (data.nextAction) {
+    properties['Next Action'] = {
+      rich_text: [{ text: { content: data.nextAction } }],
+    };
+  }
+  if (data.notes) {
+    properties['Notes'] = {
+      rich_text: [{ text: { content: data.notes } }],
+    };
+  }
+
+  const response = await createPage('NOTION_PROJECTS_DB', properties);
+  return parseProject(response);
+}
+
 export async function updateProject(
   pageId: string,
   data: {

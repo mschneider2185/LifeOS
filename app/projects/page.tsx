@@ -4,10 +4,12 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { GlassCard, WipGauge, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
-import type { Project, ProjectStatus, NotionListResponse, NotionCreateResponse } from '@/types/notion';
+import type { Project, ProjectStatus, ProjectEnergyLevel, NotionListResponse, NotionCreateResponse } from '@/types/notion';
 
 const WIP_LIMIT = 4;
 const STATUS_OPTIONS: ProjectStatus[] = ['Active', 'Maintenance', 'Parked'];
+const ENERGY_OPTIONS: ProjectEnergyLevel[] = ['Low', 'Medium', 'Deep'];
+const TIER_OPTIONS = [1, 2, 3] as const;
 
 const stagger = {
   hidden: { opacity: 0, y: 10 },
@@ -167,6 +169,153 @@ function SaveIndicator({ saving, saved }: { saving: boolean; saved: boolean }) {
   );
 }
 
+// ---- New project form ----
+
+function NewProjectForm({
+  activeCount,
+  wipLimit,
+  creating,
+  error,
+  onSubmit,
+  onCancel,
+}: {
+  activeCount: number;
+  wipLimit: number;
+  creating: boolean;
+  error: string | null;
+  onSubmit: (data: {
+    projectName: string;
+    status: string;
+    tier: number;
+    weeklyTimeCap: number;
+    energyLevel: string;
+    nextAction: string;
+  }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [status, setStatus] = useState<ProjectStatus>('Active');
+  const [tier, setTier] = useState<number>(2);
+  const [timeCap, setTimeCap] = useState<number>(4);
+  const [energy, setEnergy] = useState<ProjectEnergyLevel>('Medium');
+  const [nextAction, setNextAction] = useState('');
+
+  const atWipLimit = activeCount >= wipLimit;
+
+  return (
+    <GlassCard>
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-white">New Project</p>
+
+        {/* Name */}
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Project name"
+          className="w-full text-sm bg-white/5 border border-lifeos-border rounded-lg px-3 py-2 text-white placeholder-lifeos-text-muted outline-none focus:border-lifeos-cyan"
+          autoFocus
+        />
+
+        {/* Row: Status, Tier, Energy, Time cap */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div>
+            <label className="text-[10px] text-lifeos-text-muted block mb-1">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as ProjectStatus)}
+              className="w-full text-xs bg-white/5 border border-lifeos-border rounded-lg px-2 py-1.5 text-white outline-none focus:border-lifeos-cyan"
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s} disabled={s === 'Active' && atWipLimit}>
+                  {s}{s === 'Active' && atWipLimit ? ' (WIP full)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-lifeos-text-muted block mb-1">Tier</label>
+            <select
+              value={tier}
+              onChange={(e) => setTier(Number(e.target.value))}
+              className="w-full text-xs bg-white/5 border border-lifeos-border rounded-lg px-2 py-1.5 text-white outline-none focus:border-lifeos-cyan"
+            >
+              {TIER_OPTIONS.map((t) => (
+                <option key={t} value={t}>Tier {t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-lifeos-text-muted block mb-1">Energy</label>
+            <select
+              value={energy}
+              onChange={(e) => setEnergy(e.target.value as ProjectEnergyLevel)}
+              className="w-full text-xs bg-white/5 border border-lifeos-border rounded-lg px-2 py-1.5 text-white outline-none focus:border-lifeos-cyan"
+            >
+              {ENERGY_OPTIONS.map((e) => (
+                <option key={e} value={e}>{e}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-lifeos-text-muted block mb-1">Hours/wk</label>
+            <input
+              type="number"
+              min={0}
+              max={40}
+              step={0.5}
+              value={timeCap}
+              onChange={(e) => setTimeCap(Number(e.target.value))}
+              className="w-full text-xs bg-white/5 border border-lifeos-border rounded-lg px-2 py-1.5 text-white outline-none focus:border-lifeos-cyan"
+            />
+          </div>
+        </div>
+
+        {/* Next action */}
+        <input
+          value={nextAction}
+          onChange={(e) => setNextAction(e.target.value)}
+          placeholder="First next action (optional)"
+          className="w-full text-sm bg-white/5 border border-lifeos-border rounded-lg px-3 py-2 text-white placeholder-lifeos-text-muted outline-none focus:border-lifeos-cyan"
+        />
+
+        {/* WIP warning */}
+        {status === 'Active' && atWipLimit && (
+          <p className="text-xs text-danger">
+            WIP limit reached ({activeCount}/{wipLimit}). Change status to Maintenance or Parked, or park an existing project first.
+          </p>
+        )}
+
+        {error && <p className="text-xs text-danger">{error}</p>}
+
+        {/* Actions */}
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-xs text-lifeos-text-secondary hover:text-white transition-colors"
+            disabled={creating}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSubmit({
+              projectName: name.trim(),
+              status,
+              tier,
+              weeklyTimeCap: timeCap,
+              energyLevel: energy,
+              nextAction: nextAction.trim(),
+            })}
+            disabled={!name.trim() || creating || (status === 'Active' && atWipLimit)}
+            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-lifeos-cyan text-lifeos-bg disabled:opacity-30 transition-opacity"
+          >
+            {creating ? 'Creating...' : 'Create Project'}
+          </button>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
 // ---- Main page ----
 
 export default function ProjectsPage() {
@@ -175,6 +324,9 @@ export default function ProjectsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [showForm, setShowForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -233,6 +385,42 @@ export default function ProjectsPage() {
     [],
   );
 
+  const reloadProjects = useCallback(async () => {
+    const res = await fetch('/api/notion/projects');
+    const json = (await res.json()) as NotionListResponse<Project>;
+    if (json.data) setProjects(json.data);
+  }, []);
+
+  const handleCreateProject = async (formData: {
+    projectName: string;
+    status: string;
+    tier: number;
+    weeklyTimeCap: number;
+    energyLevel: string;
+    nextAction: string;
+  }) => {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch('/api/notion/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const json = (await res.json()) as NotionCreateResponse<Project>;
+      if (json.success && json.data) {
+        setProjects((prev) => [...prev, json.data!]);
+        setShowForm(false);
+      } else {
+        setCreateError(json.error || 'Failed to create project');
+      }
+    } catch {
+      setCreateError('Network error');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (loading) return <LoadingPulse />;
 
   if (error) {
@@ -277,6 +465,27 @@ export default function ProjectsPage() {
           </GlassCard>
         </motion.div>
       )}
+
+      {/* New project button + form */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
+        {!showForm ? (
+          <button
+            onClick={() => setShowForm(true)}
+            className="w-full text-sm text-lifeos-text-secondary hover:text-lifeos-cyan border border-dashed border-lifeos-border hover:border-lifeos-cyan/30 rounded-glass py-3 transition-colors"
+          >
+            + New Project
+          </button>
+        ) : (
+          <NewProjectForm
+            activeCount={activeCount}
+            wipLimit={WIP_LIMIT}
+            creating={creating}
+            error={createError}
+            onSubmit={handleCreateProject}
+            onCancel={() => { setShowForm(false); setCreateError(null); }}
+          />
+        )}
+      </motion.div>
 
       {/* Project groups */}
       {(['Active', 'Maintenance', 'Parked'] as const).map((status, gi) => {
