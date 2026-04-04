@@ -208,7 +208,7 @@ See `.env.example` for a copyable template with setup instructions.
 
 ### Active Sprint — Week 2 (April 5-11)
 
-🔲 **T07** — Projects CRUD: Make projects editable from the app
+✅ **T07** — Projects CRUD: Make projects editable from the app (2026-04-04)
   - **Backend:** Create `app/api/notion/projects/[id]/route.ts` with PATCH handler
     - Accept: `{ status, nextAction, weeklyTimeCap, tier, energyLevel, notes }`
     - Map to Notion properties: "Status (Active/Maintenance/Parked)", "Next Action", "Weekly Time Cap (hrs)", "Tier (1/2/3)", "Energy Level (Low/Medium/Deep)", "Notes"
@@ -222,7 +222,7 @@ See `.env.example` for a copyable template with setup instructions.
   - **Files:** `app/api/notion/projects/[id]/route.ts`, `app/projects/page.tsx`
   - **Test:** Change a project from Active to Parked in the app, verify it updates in Notion
 
-🔲 **T08** — Goals CRUD: Make goals editable from the app
+✅ **T08** — Goals CRUD: Make goals editable from the app (2026-04-04)
   - **Backend:** Create `app/api/notion/goals/[id]/route.ts` with PATCH handler
     - Accept: `{ status, progressPercent, reviewNotes, keyResult1, keyResult2, keyResult3 }`
     - Map to Notion properties: "Status", "Progress %", "Review Notes", "Key Result 1", "Key Result 2", "Key Result 3"
@@ -234,7 +234,7 @@ See `.env.example` for a copyable template with setup instructions.
   - **Files:** `app/api/notion/goals/[id]/route.ts`, `app/goals/page.tsx`
   - **Test:** Update goal progress to 60% in the app, verify in Notion
 
-🔲 **T09** — Tasks CRUD: Create and manage tasks from the app
+✅ **T09** — Tasks CRUD: Create and manage tasks from the app (2026-04-04)
   - **Backend:** Add POST to `app/api/notion/tasks/route.ts`
     - Accept: `{ task, status, effort, timeBlock, type, projectId }`
     - Create page in Tasks database with Notion properties
@@ -248,7 +248,7 @@ See `.env.example` for a copyable template with setup instructions.
   - **Files:** `app/api/notion/tasks/route.ts`, `app/api/notion/tasks/[id]/route.ts`, `app/projects/page.tsx` or `app/tasks/page.tsx`
   - **Test:** Create a new task, mark it Done, verify in Notion
 
-🔲 **T10** — Create new projects from the app
+✅ **T10** — Create new projects from the app (2026-04-04)
   - **Backend:** Add POST to `app/api/notion/projects/route.ts`
     - Accept: `{ projectName, status, tier, weeklyTimeCap, energyLevel, nextAction, notes }`
     - Enforce WIP limit: if active count >= 4 and status is "Active", return error with message
@@ -258,7 +258,7 @@ See `.env.example` for a copyable template with setup instructions.
   - **Files:** `app/api/notion/projects/route.ts`, `app/projects/page.tsx`
   - **Test:** Create a new project, verify WIP limit enforcement
 
-🔲 **T11** — Create new goals from the app
+✅ **T11** — Create new goals from the app (2026-04-04)
   - **Backend:** Add POST to `app/api/notion/goals/route.ts`
     - Accept: `{ goal, status, quarter, lifeArea, progressPercent, ifIDontDoThis, keyResult1, keyResult2, keyResult3, targetDate }`
   - **Frontend:** Add "New Goal" button on goals page
