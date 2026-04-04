@@ -294,6 +294,53 @@ export async function getGoals(): Promise<Goal[]> {
   return results.map(parseGoal);
 }
 
+export async function updateGoal(
+  pageId: string,
+  data: {
+    status?: GoalStatus;
+    progressPercent?: number;
+    reviewNotes?: string;
+    keyResult1?: string;
+    keyResult2?: string;
+    keyResult3?: string;
+  },
+): Promise<Goal> {
+  const properties: Record<string, unknown> = {};
+
+  if (data.status !== undefined) {
+    properties['Status'] = { status: { name: data.status } };
+  }
+  if (data.progressPercent !== undefined) {
+    properties['Progress %'] = { number: data.progressPercent };
+  }
+  if (data.reviewNotes !== undefined) {
+    properties['Review Notes'] = {
+      rich_text: [{ text: { content: data.reviewNotes } }],
+    };
+  }
+  if (data.keyResult1 !== undefined) {
+    properties['Key Result 1'] = {
+      rich_text: [{ text: { content: data.keyResult1 } }],
+    };
+  }
+  if (data.keyResult2 !== undefined) {
+    properties['Key Result 2'] = {
+      rich_text: [{ text: { content: data.keyResult2 } }],
+    };
+  }
+  if (data.keyResult3 !== undefined) {
+    properties['Key Result 3'] = {
+      rich_text: [{ text: { content: data.keyResult3 } }],
+    };
+  }
+
+  const response = await notionFetch(`/pages/${pageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ properties }),
+  });
+  return parseGoal(response);
+}
+
 export async function getProjects(): Promise<Project[]> {
   const results = await queryDatabase('NOTION_PROJECTS_DB', {
     page_size: 100,
