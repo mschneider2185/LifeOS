@@ -411,6 +411,55 @@ export async function getTasks(statusFilter?: string): Promise<Task[]> {
   return results.map(parseTask);
 }
 
+export async function createTask(data: {
+  task: string;
+  status?: TaskStatus;
+  effort?: TaskEffort[];
+  timeBlock?: TaskTimeBlock[];
+  type?: TaskType[];
+  projectId?: string;
+}): Promise<Task> {
+  const properties: Record<string, unknown> = {
+    'Task': { title: [{ text: { content: data.task } }] },
+  };
+
+  if (data.status) {
+    properties['Status'] = { status: { name: data.status } };
+  }
+  if (data.effort?.length) {
+    properties['Effort'] = { multi_select: data.effort.map((e) => ({ name: e })) };
+  }
+  if (data.timeBlock?.length) {
+    properties['Time Block'] = { multi_select: data.timeBlock.map((t) => ({ name: t })) };
+  }
+  if (data.type?.length) {
+    properties['Type'] = { multi_select: data.type.map((t) => ({ name: t })) };
+  }
+  if (data.projectId) {
+    properties['Projects (Database)'] = { relation: [{ id: data.projectId }] };
+  }
+
+  const response = await createPage('NOTION_TASKS_DB', properties);
+  return parseTask(response);
+}
+
+export async function updateTask(
+  pageId: string,
+  data: { status?: TaskStatus },
+): Promise<Task> {
+  const properties: Record<string, unknown> = {};
+
+  if (data.status !== undefined) {
+    properties['Status'] = { status: { name: data.status } };
+  }
+
+  const response = await notionFetch(`/pages/${pageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ properties }),
+  });
+  return parseTask(response);
+}
+
 export async function getHealthEntries(limit = 10): Promise<HealthEntry[]> {
   const results = await queryDatabase('NOTION_HEALTH_DB', {
     sorts: [{ timestamp: 'created_time', direction: 'descending' }],
