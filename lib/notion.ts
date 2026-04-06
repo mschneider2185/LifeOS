@@ -56,6 +56,7 @@ function getDbId(envKey: string): string {
 async function notionFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
   const res = await fetch(`${NOTION_API}${endpoint}`, {
     ...options,
+    cache: 'no-store',
     headers: {
       'Authorization': `Bearer ${getApiKey()}`,
       'Content-Type': 'application/json',

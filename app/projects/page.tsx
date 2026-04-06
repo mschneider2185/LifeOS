@@ -111,14 +111,33 @@ function StatusDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
+  // When open, lift the entire card above siblings via a parent style
+  useEffect(() => {
+    if (!ref.current) return;
+    const card = ref.current.closest('.project-card-wrapper') as HTMLElement | null;
+    if (card) card.style.zIndex = open ? '50' : '';
+  }, [open]);
+
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="transition-glass"
+        className="group flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border cursor-pointer transition-all duration-150 hover:brightness-125 hover:shadow-[0_0_8px_rgba(255,255,255,0.06)]"
+        style={{
+          background: statusVariant(current) === 'cyan' ? 'rgba(0,212,255,0.15)' :
+                       statusVariant(current) === 'green' ? 'rgba(16,185,129,0.15)' :
+                       'rgba(245,158,11,0.15)',
+          color: statusVariant(current) === 'cyan' ? '#00d4ff' :
+                 statusVariant(current) === 'green' ? '#10b981' :
+                 '#f59e0b',
+          borderColor: statusVariant(current) === 'cyan' ? 'rgba(0,212,255,0.3)' :
+                       statusVariant(current) === 'green' ? 'rgba(16,185,129,0.3)' :
+                       'rgba(245,158,11,0.3)',
+        }}
         aria-label={`Change status from ${current}`}
       >
-        <StatusBadge label={current} variant={statusVariant(current)} className="cursor-pointer hover:opacity-80" />
+        {current}
+        <span className={`text-[9px] opacity-60 group-hover:opacity-100 transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
       </button>
 
       <AnimatePresence>
@@ -128,7 +147,7 @@ function StatusDropdown({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-1 z-20 glass-card !p-1 min-w-[120px]"
+            className="absolute right-0 top-full mt-1 z-50 glass-card !p-1 min-w-[120px] !bg-[rgba(15,15,25,0.92)]"
           >
             {STATUS_OPTIONS.map((s) => (
               <button
@@ -331,7 +350,7 @@ export default function ProjectsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/notion/projects');
+        const res = await fetch('/api/notion/projects', { cache: 'no-store' });
         const json = (await res.json()) as NotionListResponse<Project>;
         if (json.error) setError(json.error);
         else setProjects(json.data);
@@ -508,7 +527,7 @@ export default function ProjectsPage() {
             />
             <div className="space-y-3">
               {items.map((project, i) => (
-                <motion.div key={project.id} custom={i} initial="hidden" animate="visible" variants={stagger}>
+                <motion.div key={project.id} custom={i} initial="hidden" animate="visible" variants={stagger} className="project-card-wrapper relative">
                   <GlassCard className="flex flex-col sm:flex-row sm:items-center gap-3">
                     {/* Name + next action */}
                     <div className="flex-1 min-w-0">

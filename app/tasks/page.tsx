@@ -63,7 +63,7 @@ export default function TasksPage() {
 
   const loadTasks = useCallback(async () => {
     try {
-      const res = await fetch('/api/notion/tasks');
+      const res = await fetch('/api/notion/tasks', { cache: 'no-store' });
       const json = (await res.json()) as NotionListResponse<Task>;
       if (json.error) setError(json.error);
       else setTasks(json.data);

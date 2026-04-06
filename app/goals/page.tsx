@@ -128,17 +128,17 @@ function ProgressAdjuster({
       <ProgressRing percent={percent} size={48} strokeWidth={4} color={color} />
       <div className="flex items-center gap-1">
         <button
-          onClick={() => adjust(-10)}
+          onClick={() => adjust(-5)}
           className="w-6 h-6 rounded text-[11px] font-medium bg-white/5 text-lifeos-text-secondary hover:text-white hover:bg-white/10 transition-colors"
-          aria-label="Decrease progress by 10%"
+          aria-label="Decrease progress by 5%"
         >
           −
         </button>
         <span className="text-[10px] text-lifeos-text-muted w-8 text-center">{percent}%</span>
         <button
-          onClick={() => adjust(10)}
+          onClick={() => adjust(5)}
           className="w-6 h-6 rounded text-[11px] font-medium bg-white/5 text-lifeos-text-secondary hover:text-white hover:bg-white/10 transition-colors"
-          aria-label="Increase progress by 10%"
+          aria-label="Increase progress by 5%"
         >
           +
         </button>
@@ -355,7 +355,7 @@ export default function GoalsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/notion/goals');
+        const res = await fetch('/api/notion/goals', { cache: 'no-store' });
         const json = (await res.json()) as NotionListResponse<Goal>;
         if (json.error) setError(json.error);
         else setGoals(json.data);

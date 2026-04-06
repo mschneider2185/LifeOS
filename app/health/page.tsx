@@ -58,7 +58,7 @@ export default function HealthPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/notion/health');
+        const res = await fetch('/api/notion/health', { cache: 'no-store' });
         const json = (await res.json()) as NotionListResponse<HealthEntry>;
         if (json.error) setError(json.error);
         else setEntries(json.data);

@@ -328,6 +328,14 @@ See `.env.example` for a copyable template with setup instructions.
   - Remove `database-setup.sql.sql` (double extension), `cleanup.ps1`, `gitignore-additions.txt`
   - Rename package.json name from "mind-map-pro" to "lifeos" (if not done)
 
+🔲 **T21** — Project detail page
+  - Create `app/projects/[id]/page.tsx` — detail view for a single project
+  - Backend: `app/api/notion/projects/[id]/route.ts` already exists (PATCH), add GET handler that returns full project data + page content from Notion
+  - Frontend: show all project properties (editable), full notes field, related tasks from Tasks database filtered by project relation, "If I DON'T finish this" consequence section
+  - Link from project cards on the list page (click project name → detail page)
+  - Back button to return to project list
+  - Files: `app/projects/[id]/page.tsx`, `app/api/notion/projects/[id]/route.ts`
+
 ---
 
 ### Parallel Dev Rules
