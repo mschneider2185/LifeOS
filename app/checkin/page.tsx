@@ -58,7 +58,7 @@ export default function CheckInPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/notion/checkins');
+        const res = await fetch('/api/notion/checkins', { cache: 'no-store' });
         const json = (await res.json()) as NotionListResponse<CheckIn>;
         if (json.data) setHistory(json.data);
       } catch {
@@ -97,7 +97,7 @@ export default function CheckInPage() {
       if (json.success) {
         setSubmitted(true);
         // Refresh history
-        const histRes = await fetch('/api/notion/checkins');
+        const histRes = await fetch('/api/notion/checkins', { cache: 'no-store' });
         const histJson = (await histRes.json()) as NotionListResponse<CheckIn>;
         if (histJson.data) setHistory(histJson.data);
       }
