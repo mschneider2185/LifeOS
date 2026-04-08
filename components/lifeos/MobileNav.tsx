@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { href: '/projects', label: 'Projects', icon: '▦' },
   { href: '/checkin', label: 'Check-in', icon: '✦' },
   { href: '/goals', label: 'Goals', icon: '◎' },
+  { href: '/activity-log', label: 'Log', icon: '▤' },
   { href: '/health', label: 'Health', icon: '♥' },
 ];
 

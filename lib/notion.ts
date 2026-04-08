@@ -4,6 +4,7 @@ import type {
   Project,
   Task,
   HealthEntry,
+  ActivityLog,
   EnergyLevel,
   StressLevel,
   GoalStatus,
@@ -240,6 +241,21 @@ function parseHealth(page: any): HealthEntry {
     whatHurt: getRichText(p['What Hurt']),
     selfCareActions: getMultiSelect(p['Self-Care Actions']),
     notes: getRichText(p['Notes']),
+  };
+}
+
+function parseActivityLog(page: any): ActivityLog {
+  const p = page.properties;
+  return {
+    id: page.id,
+    date: getTitle(p['Date']),
+    logDate: getDate(p['Log Date']),
+    projectsTouched: getRelationIds(p['Projects Touched']),
+    whatGotDone: getRichText(p['What Got Done']),
+    keyDecisions: getRichText(p['Key Decisions']),
+    openItems: getRichText(p['Open Items']),
+    spend: getNumber(p['Spend']),
+    tomorrowPriorities: getRichText(p['Tomorrow Priorities']),
   };
 }
 
@@ -598,4 +614,125 @@ export async function appendBrainDump(text: string): Promise<void> {
       ],
     }),
   });
+}
+
+// ============================================================
+// Activity Log
+// ============================================================
+
+export async function getActivityLog(limit = 7): Promise<ActivityLog[]> {
+  const results = await queryDatabase('NOTION_ACTIVITY_LOG_DB_ID', {
+    sorts: [{ property: 'Log Date', direction: 'descending' }],
+    page_size: limit,
+  });
+  return results.map(parseActivityLog);
+}
+
+export async function getActivityLogByDate(date: string): Promise<ActivityLog | null> {
+  const results = await queryDatabase('NOTION_ACTIVITY_LOG_DB_ID', {
+    filter: {
+      property: 'Log Date',
+      date: { equals: date },
+    },
+    page_size: 1,
+  });
+  if (results.length === 0) return null;
+  return parseActivityLog(results[0]);
+}
+
+export async function createActivityLog(data: {
+  date: string;
+  logDate: string;
+  projectsTouched?: string[];
+  whatGotDone?: string;
+  keyDecisions?: string;
+  openItems?: string;
+  spend?: number;
+  tomorrowPriorities?: string;
+}): Promise<ActivityLog> {
+  const properties: Record<string, unknown> = {
+    'Date': { title: [{ text: { content: data.date } }] },
+    'Log Date': { date: { start: data.logDate } },
+  };
+
+  if (data.projectsTouched?.length) {
+    properties['Projects Touched'] = {
+      relation: data.projectsTouched.map((id) => ({ id })),
+    };
+  }
+  if (data.whatGotDone) {
+    properties['What Got Done'] = {
+      rich_text: [{ text: { content: data.whatGotDone } }],
+    };
+  }
+  if (data.keyDecisions) {
+    properties['Key Decisions'] = {
+      rich_text: [{ text: { content: data.keyDecisions } }],
+    };
+  }
+  if (data.openItems) {
+    properties['Open Items'] = {
+      rich_text: [{ text: { content: data.openItems } }],
+    };
+  }
+  if (data.spend !== undefined) {
+    properties['Spend'] = { number: data.spend };
+  }
+  if (data.tomorrowPriorities) {
+    properties['Tomorrow Priorities'] = {
+      rich_text: [{ text: { content: data.tomorrowPriorities } }],
+    };
+  }
+
+  const response = await createPage('NOTION_ACTIVITY_LOG_DB_ID', properties);
+  return parseActivityLog(response);
+}
+
+export async function updateActivityLog(
+  pageId: string,
+  data: {
+    whatGotDone?: string;
+    keyDecisions?: string;
+    openItems?: string;
+    spend?: number;
+    tomorrowPriorities?: string;
+    projectsTouched?: string[];
+  },
+): Promise<ActivityLog> {
+  const properties: Record<string, unknown> = {};
+
+  if (data.whatGotDone !== undefined) {
+    properties['What Got Done'] = {
+      rich_text: [{ text: { content: data.whatGotDone } }],
+    };
+  }
+  if (data.keyDecisions !== undefined) {
+    properties['Key Decisions'] = {
+      rich_text: [{ text: { content: data.keyDecisions } }],
+    };
+  }
+  if (data.openItems !== undefined) {
+    properties['Open Items'] = {
+      rich_text: [{ text: { content: data.openItems } }],
+    };
+  }
+  if (data.spend !== undefined) {
+    properties['Spend'] = { number: data.spend };
+  }
+  if (data.tomorrowPriorities !== undefined) {
+    properties['Tomorrow Priorities'] = {
+      rich_text: [{ text: { content: data.tomorrowPriorities } }],
+    };
+  }
+  if (data.projectsTouched !== undefined) {
+    properties['Projects Touched'] = {
+      relation: data.projectsTouched.map((id) => ({ id })),
+    };
+  }
+
+  const response = await notionFetch(`/pages/${pageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ properties }),
+  });
+  return parseActivityLog(response);
 }

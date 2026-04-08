@@ -114,6 +114,18 @@ export interface HealthEntry {
   notes: string;
 }
 
+export interface ActivityLog {
+  id: string;
+  date: string;
+  logDate: string | null;
+  projectsTouched: string[];
+  whatGotDone: string;
+  keyDecisions: string;
+  openItems: string;
+  spend: number | null;
+  tomorrowPriorities: string;
+}
+
 // --- POST Request Bodies ---
 
 export interface CreateCheckInBody {
@@ -131,6 +143,26 @@ export interface CreateCheckInBody {
 
 export interface BrainDumpBody {
   text: string;
+}
+
+export interface CreateActivityLogBody {
+  date: string;
+  logDate: string;
+  projectsTouched?: string[];
+  whatGotDone?: string;
+  keyDecisions?: string;
+  openItems?: string;
+  spend?: number;
+  tomorrowPriorities?: string;
+}
+
+export interface UpdateActivityLogBody {
+  whatGotDone?: string;
+  keyDecisions?: string;
+  openItems?: string;
+  spend?: number;
+  tomorrowPriorities?: string;
+  projectsTouched?: string[];
 }
 
 // --- API Response Types ---
