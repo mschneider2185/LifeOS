@@ -1,3 +1,4 @@
+export { AuthGuard } from './AuthGuard';
 export { GlassCard } from './GlassCard';
 export { WipGauge } from './WipGauge';
 export { StatusBadge } from './StatusBadge';

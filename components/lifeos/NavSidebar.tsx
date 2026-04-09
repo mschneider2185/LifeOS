@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface NavItem {
   href: string;
@@ -22,6 +25,19 @@ const navItems: NavItem[] = [
 
 export function NavSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out failed:', error.message);
+      setSigningOut(false);
+    } else {
+      router.push('/');
+    }
+  };
 
   return (
     <aside
@@ -73,6 +89,19 @@ export function NavSidebar() {
         <p className="text-[10px] text-text-secondary uppercase tracking-wider mb-1">Personality</p>
         <p className="text-xs text-white/80">WIP Limit: 4</p>
         <p className="text-xs text-white/80">Tone: Coach</p>
+      </div>
+
+      {/* Sign out */}
+      <div className="px-3 pb-4">
+        <button
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-text-secondary hover:text-white hover:bg-white/5 w-full disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Sign out"
+        >
+          <LogOut size={16} className="w-5 text-center" />
+          <span>{signingOut ? 'Signing out...' : 'Sign out'}</span>
+        </button>
       </div>
     </aside>
   );

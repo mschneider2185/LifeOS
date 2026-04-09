@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { GlassCard, WipGauge, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
+import { AuthGuard, GlassCard, WipGauge, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
 import type { Project, ProjectStatus, ProjectEnergyLevel, NotionListResponse, NotionCreateResponse } from '@/types/notion';
 
 const WIP_LIMIT = 4;
@@ -338,6 +338,14 @@ function NewProjectForm({
 // ---- Main page ----
 
 export default function ProjectsPage() {
+  return (
+    <AuthGuard>
+      <ProjectsContent />
+    </AuthGuard>
+  );
+}
+
+function ProjectsContent() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

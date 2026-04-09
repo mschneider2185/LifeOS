@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 
-import { GlassCard, LoadingPulse, SectionHeader } from '@/components/lifeos';
+import { AuthGuard, GlassCard, LoadingPulse, SectionHeader } from '@/components/lifeos';
 import type {
   ActivityLog,
   Project,
@@ -33,6 +33,14 @@ const stagger = {
 };
 
 export default function ActivityLogPage() {
+  return (
+    <AuthGuard>
+      <ActivityLogContent />
+    </AuthGuard>
+  );
+}
+
+function ActivityLogContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { GlassCard, ProgressRing, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
+import { AuthGuard, GlassCard, ProgressRing, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
 import type { Goal, GoalStatus, LifeArea, Quarter, NotionListResponse, NotionCreateResponse } from '@/types/notion';
 
 const STATUS_FLOW: GoalStatus[] = ['Not started', 'In progress', 'Done'];
@@ -343,6 +343,14 @@ function NewGoalForm({
 // ---- Main page ----
 
 export default function GoalsPage() {
+  return (
+    <AuthGuard>
+      <GoalsContent />
+    </AuthGuard>
+  );
+}
+
+function GoalsContent() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

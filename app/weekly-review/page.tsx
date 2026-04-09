@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AuthGuard } from '@/components/lifeos';
 
 import { ReviewWizard, type ReviewData } from '@/components/weekly-review/ReviewWizard';
 import { ReviewHistory } from '@/components/weekly-review/ReviewHistory';
@@ -17,6 +18,14 @@ function getStartOfWeek(): string {
 }
 
 export default function WeeklyReviewPage() {
+  return (
+    <AuthGuard>
+      <WeeklyReviewContent />
+    </AuthGuard>
+  );
+}
+
+function WeeklyReviewContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);

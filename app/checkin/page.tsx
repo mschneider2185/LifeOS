@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
-import { GlassCard, LoadingPulse, SectionHeader, StatusBadge } from '@/components/lifeos';
+import { AuthGuard, GlassCard, LoadingPulse, SectionHeader, StatusBadge } from '@/components/lifeos';
 import type {
   CheckIn,
   EnergyLevel,
@@ -39,6 +39,14 @@ const stagger = {
 };
 
 export default function CheckInPage() {
+  return (
+    <AuthGuard>
+      <CheckInContent />
+    </AuthGuard>
+  );
+}
+
+function CheckInContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);

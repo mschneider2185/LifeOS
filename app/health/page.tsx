@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
-import { GlassCard, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
+import { AuthGuard, GlassCard, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
 import type { HealthEntry, BurnoutWarning, StressTrend, NotionListResponse } from '@/types/notion';
 
 const stagger = {
@@ -51,6 +51,14 @@ function trendVariant(trend: StressTrend | null): 'green' | 'cyan' | 'orange' | 
 }
 
 export default function HealthPage() {
+  return (
+    <AuthGuard>
+      <HealthContent />
+    </AuthGuard>
+  );
+}
+
+function HealthContent() {
   const [entries, setEntries] = useState<HealthEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

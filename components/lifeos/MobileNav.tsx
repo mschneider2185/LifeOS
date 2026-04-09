@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface NavItem {
   href: string;
@@ -20,6 +23,19 @@ const navItems: NavItem[] = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out failed:', error.message);
+      setSigningOut(false);
+    } else {
+      router.push('/');
+    }
+  };
 
   return (
     <nav
@@ -47,6 +63,15 @@ export function MobileNav() {
             </Link>
           );
         })}
+        <button
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="flex flex-col items-center gap-0.5 py-1.5 px-2 min-w-0 rounded-lg transition-colors text-text-secondary hover:text-white disabled:opacity-40"
+          aria-label="Sign out"
+        >
+          <LogOut size={16} />
+          <span className="text-[10px] truncate">{signingOut ? 'Wait...' : 'Sign out'}</span>
+        </button>
       </div>
     </nav>
   );

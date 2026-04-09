@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
-import { GlassCard, WipGauge, ProgressRing, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
+import { AuthGuard, GlassCard, WipGauge, ProgressRing, StatusBadge, LoadingPulse, SectionHeader } from '@/components/lifeos';
 import type { DashboardData, NotionListResponse, BurnoutWarning } from '@/types/notion';
 
 const stagger = {
@@ -51,6 +51,14 @@ function energyEmoji(level: string | null): string {
 }
 
 export default function DashboardPage() {
+  return (
+    <AuthGuard>
+      <DashboardContent />
+    </AuthGuard>
+  );
+}
+
+function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

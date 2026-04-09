@@ -3,10 +3,18 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { GlassCard } from '@/components/lifeos';
+import { AuthGuard, GlassCard } from '@/components/lifeos';
 import type { BrainDumpBody, NotionCreateResponse } from '@/types/notion';
 
 export default function BrainDumpPage() {
+  return (
+    <AuthGuard>
+      <BrainDumpContent />
+    </AuthGuard>
+  );
+}
+
+function BrainDumpContent() {
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
