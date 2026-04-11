@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -63,24 +63,39 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchDashboard = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await fetch(`/api/notion/dashboard?t=${Date.now()}`);
+      const json = (await res.json()) as NotionListResponse<DashboardData>;
+      if (json.error) {
+        setError(json.error);
+      } else if (json.data.length > 0) {
+        setData(json.data[0]);
+        setError(null);
+      }
+    } catch {
+      setError('Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch on mount
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch('/api/notion/dashboard');
-        const json = (await res.json()) as NotionListResponse<DashboardData>;
-        if (json.error) {
-          setError(json.error);
-        } else if (json.data.length > 0) {
-          setData(json.data[0]);
-        }
-      } catch {
-        setError('Failed to load dashboard');
-      } finally {
-        setLoading(false);
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  // Re-fetch when page becomes visible (handles back-navigation and mobile app resume)
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        fetchDashboard(false);
       }
     }
-    load();
-  }, []);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [fetchDashboard]);
 
   if (loading) {
     return (

@@ -5,6 +5,8 @@ import type {
   Task,
   HealthEntry,
   ActivityLog,
+  BrainDump,
+  BrainDumpCategory,
   EnergyLevel,
   StressLevel,
   GoalStatus,
@@ -585,35 +587,48 @@ export async function getHealthEntries(limit = 10): Promise<HealthEntry[]> {
   return results.map(parseHealth);
 }
 
-export async function appendBrainDump(text: string): Promise<void> {
-  const blockId = getDbId('NOTION_BRAINDUMP_PAGE');
-  const now = new Date().toISOString();
-  await notionFetch(`/blocks/${blockId}/children`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      children: [
-        {
-          object: 'block',
-          type: 'divider',
-          divider: {},
-        },
-        {
-          object: 'block',
-          type: 'heading_3',
-          heading_3: {
-            rich_text: [{ type: 'text', text: { content: `Brain Dump — ${now}` } }],
-          },
-        },
-        {
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [{ type: 'text', text: { content: text } }],
-          },
-        },
-      ],
-    }),
+// ============================================================
+// Brain Dump (database-backed, replaces old page-append logic)
+// ============================================================
+
+function parseBrainDump(page: any): BrainDump {
+  const p = page.properties;
+  return {
+    id: page.id,
+    title: getTitle(p['Title']),
+    content: getRichText(p['Content']),
+    category: getSelect(p['Category']) as BrainDumpCategory | null,
+    triaged: getCheckbox(p['Triaged']),
+    createdAt: getDate(p['Created At']),
+  };
+}
+
+export async function getBrainDumps(limit = 20): Promise<BrainDump[]> {
+  const results = await queryDatabase('NOTION_BRAINDUMP_DB', {
+    sorts: [{ property: 'Created At', direction: 'descending' }],
+    page_size: limit,
   });
+  return results.map(parseBrainDump);
+}
+
+export async function createBrainDump(data: {
+  title: string;
+  content: string;
+  category?: BrainDumpCategory;
+}): Promise<BrainDump> {
+  const properties: Record<string, unknown> = {
+    'Title': { title: [{ text: { content: data.title } }] },
+    'Content': { rich_text: [{ text: { content: data.content } }] },
+    'Triaged': { checkbox: false },
+    'Created At': { date: { start: new Date().toISOString() } },
+  };
+
+  if (data.category) {
+    properties['Category'] = { select: { name: data.category } };
+  }
+
+  const response = await createPage('NOTION_BRAINDUMP_DB', properties);
+  return parseBrainDump(response);
 }
 
 // ============================================================

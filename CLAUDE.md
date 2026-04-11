@@ -128,7 +128,7 @@ Notion serves as a secondary data layer alongside Supabase. API routes in `app/a
 | Projects       | `7254b157403c4640acae675505cc409d` | Project tracker with WIP limits|
 | Tasks          | `2d3e7ce2e2a080329387eddaa6263ee3` | Task management                |
 | Health         | `4e8edb28aaaf4486890d5245731f0db2` | Health & wellness tracking     |
-| Brain Dump     | `331e7ce2e2a0814c94eef2d3a18a8a87` | Zero-friction capture (page)   |
+| Brain Dump     | `3c475c15e09c4584b08412c0342b49e8` | Zero-friction capture (database) |
 
 ### Setup
 1. Create integration at [notion.so/my-integrations](https://www.notion.so/my-integrations)
@@ -165,7 +165,7 @@ NOTION_GOALS_DB=17f3f35170e04ce2911fcb76182ba62f
 NOTION_PROJECTS_DB=7254b157403c4640acae675505cc409d
 NOTION_TASKS_DB=2d3e7ce2e2a080329387eddaa6263ee3
 NOTION_HEALTH_DB=4e8edb28aaaf4486890d5245731f0db2
-NOTION_BRAINDUMP_PAGE=331e7ce2e2a0814c94eef2d3a18a8a87
+NOTION_BRAINDUMP_DB=3c475c15e09c4584b08412c0342b49e8
 
 # App
 NEXT_PUBLIC_APP_URL=<your deployed URL>

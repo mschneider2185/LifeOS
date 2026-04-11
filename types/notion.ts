@@ -126,6 +126,17 @@ export interface ActivityLog {
   tomorrowPriorities: string;
 }
 
+export type BrainDumpCategory = 'task' | 'idea' | 'worry' | 'note' | 'project' | 'someday';
+
+export interface BrainDump {
+  id: string;
+  title: string;
+  content: string;
+  category: BrainDumpCategory | null;
+  triaged: boolean;
+  createdAt: string | null;
+}
+
 // --- POST Request Bodies ---
 
 export interface CreateCheckInBody {
@@ -142,7 +153,8 @@ export interface CreateCheckInBody {
 }
 
 export interface BrainDumpBody {
-  text: string;
+  content: string;
+  category?: BrainDumpCategory;
 }
 
 export interface CreateActivityLogBody {

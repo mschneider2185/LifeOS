@@ -55,13 +55,13 @@ function CheckInContent() {
   // Form state
   const [energy, setEnergy] = useState<EnergyLevel | null>(null);
   const [stress, setStress] = useState<StressLevel | null>(null);
-  const [sleepHours, setSleepHours] = useState<number>(7);
+  const [sleepHours, setSleepHours] = useState<string>('7');
   const [exercise, setExercise] = useState(false);
   const [brainDumpUsed, setBrainDumpUsed] = useState(false);
   const [topWin, setTopWin] = useState('');
   const [biggestBlocker, setBiggestBlocker] = useState('');
   const [moodNote, setMoodNote] = useState('');
-  const [projectsTouched, setProjectsTouched] = useState<number>(0);
+  const [projectsTouched, setProjectsTouched] = useState<string>('');
 
   useEffect(() => {
     async function load() {
@@ -86,12 +86,12 @@ function CheckInContent() {
       date: new Date().toISOString().split('T')[0],
       energyLevel: energy,
       stressLevel: stress,
-      sleepHours,
+      sleepHours: sleepHours === '' ? 0 : parseFloat(sleepHours),
       exercise,
       topWin: topWin || undefined,
       biggestBlocker: biggestBlocker || undefined,
       moodNote: moodNote || undefined,
-      projectsTouched: projectsTouched || undefined,
+      projectsTouched: projectsTouched === '' ? undefined : parseInt(projectsTouched, 10),
       brainDumpUsed,
     };
 
@@ -206,7 +206,7 @@ function CheckInContent() {
                       max={24}
                       step={0.5}
                       value={sleepHours}
-                      onChange={(e) => setSleepHours(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => setSleepHours(e.target.value)}
                       className="input-field text-center !py-2"
                       aria-label="Hours of sleep"
                     />
@@ -282,7 +282,7 @@ function CheckInContent() {
                       min={0}
                       max={20}
                       value={projectsTouched}
-                      onChange={(e) => setProjectsTouched(parseInt(e.target.value) || 0)}
+                      onChange={(e) => setProjectsTouched(e.target.value)}
                       className="input-field !py-2 text-sm w-20"
                       aria-label="Number of projects touched"
                     />

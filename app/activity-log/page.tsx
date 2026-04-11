@@ -51,7 +51,7 @@ function ActivityLogContent() {
   const [whatGotDone, setWhatGotDone] = useState('');
   const [keyDecisions, setKeyDecisions] = useState('');
   const [openItems, setOpenItems] = useState('');
-  const [spend, setSpend] = useState<number | undefined>(undefined);
+  const [spend, setSpend] = useState<string>('');
   const [tomorrowPriorities, setTomorrowPriorities] = useState('');
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
 
@@ -85,7 +85,7 @@ function ActivityLogContent() {
         setWhatGotDone(entry.whatGotDone);
         setKeyDecisions(entry.keyDecisions);
         setOpenItems(entry.openItems);
-        setSpend(entry.spend ?? undefined);
+        setSpend(entry.spend != null ? String(entry.spend) : '');
         setTomorrowPriorities(entry.tomorrowPriorities);
         setSelectedProjectIds(entry.projectsTouched);
       }
@@ -110,7 +110,7 @@ function ActivityLogContent() {
         whatGotDone,
         keyDecisions,
         openItems,
-        spend: spend ?? undefined,
+        spend: spend === '' ? undefined : parseFloat(spend),
         tomorrowPriorities,
         projectsTouched: selectedProjectIds,
       };
@@ -270,11 +270,8 @@ function ActivityLogContent() {
                   type="number"
                   min={0}
                   step={0.01}
-                  value={spend ?? ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setSpend(v === '' ? undefined : parseFloat(v));
-                  }}
+                  value={spend}
+                  onChange={(e) => setSpend(e.target.value)}
                   placeholder="0.00"
                   className="input-field !py-2 text-sm w-32"
                   aria-label="Amount spent"
