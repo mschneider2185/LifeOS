@@ -182,44 +182,61 @@ export const db = {
   },
 };
 
+async function getAuthedUserId(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  return user.id;
+}
+
 // MBTI Questions
 export async function getMBTIQuestions() {
   const { data, error } = await supabase
     .from('mbti_questions')
     .select('*')
-    .order('question_order', { ascending: true });
+    .order('id', { ascending: true });
   if (error) throw error;
   return data;
 }
 
 // Store user MBTI responses
-export async function saveMBTIResponses({ userId, responses, testType = 'mbti' }: {
-  userId: string,
+export async function saveMBTIResponses({ responses }: {
   responses: { question_id: string, selected_trait: string }[],
-  testType?: string
 }) {
+  const userId = await getAuthedUserId();
   const rows = responses.map(r => ({
     user_id: userId,
     question_id: r.question_id,
-    selected_trait: r.selected_trait,
-    test_type: testType,
-    created_at: new Date().toISOString(),
+    question_type: 'mbti',
+    response: { selected_trait: r.selected_trait },
   }));
   const { error } = await supabase.from('user_responses').insert(rows);
   if (error) throw error;
 }
 
 // Store MBTI result
-export async function saveMBTIResult({ userId, result }: {
-  userId: string,
+export async function saveMBTIResult({ result }: {
   result: {
-    e: number, i: number, s: number, n: number, t: number, f: number, j: number, p: number, mbti_type: string
+    e: number, i: number, s: number, n: number,
+    t: number, f: number, j: number, p: number,
+    turbulent: number, assertive: number,
+    mbti_type: string
   }
 }) {
-  const { error } = await supabase.from('mbti_results').upsert({
+  const userId = await getAuthedUserId();
+  const { error } = await supabase.from('mbti_results').insert({
     user_id: userId,
-    ...result
-  }, { onConflict: 'user_id' });
+    personality_type: result.mbti_type,
+    e_score: result.e,
+    i_score: result.i,
+    s_score: result.s,
+    n_score: result.n,
+    t_score: result.t,
+    f_score: result.f,
+    j_score: result.j,
+    p_score: result.p,
+    turbulent_score: result.turbulent,
+    assertive_score: result.assertive,
+  });
   if (error) throw error;
 }
 
@@ -228,38 +245,42 @@ export async function getDISCQuestions() {
   const { data, error } = await supabase
     .from('disc_questions')
     .select('*')
-    .order('question_number', { ascending: true });
+    .order('question_order', { ascending: true });
   if (error) throw error;
   return data;
 }
 
 // Store user DISC responses
-export async function saveDISCResponses({ userId, responses, testType = 'disc' }: {
-  userId: string,
+export async function saveDISCResponses({ responses }: {
   responses: { question_id: string, selected_trait: string }[],
-  testType?: string
 }) {
+  const userId = await getAuthedUserId();
   const rows = responses.map(r => ({
     user_id: userId,
     question_id: r.question_id,
-    selected_trait: r.selected_trait,
-    test_type: testType,
-    created_at: new Date().toISOString(),
+    question_type: 'disc',
+    response: { selected_trait: r.selected_trait },
   }));
   const { error } = await supabase.from('user_responses').insert(rows);
   if (error) throw error;
 }
 
 // Store DISC result
-export async function saveDISCResult({ userId, result }: {
-  userId: string,
+export async function saveDISCResult({ result }: {
   result: {
-    dominance: number, influence: number, steadiness: number, compliance: number, disc_type: string
+    dominance: number, influence: number, steadiness: number, compliance: number,
+    primary_style: string, secondary_style: string
   }
 }) {
-  const { error } = await supabase.from('disc_results').upsert({
+  const userId = await getAuthedUserId();
+  const { error } = await supabase.from('disc_results').insert({
     user_id: userId,
-    ...result
-  }, { onConflict: 'user_id' });
+    d_score: result.dominance,
+    i_score: result.influence,
+    s_score: result.steadiness,
+    c_score: result.compliance,
+    primary_style: result.primary_style,
+    secondary_style: result.secondary_style,
+  });
   if (error) throw error;
-} 
+}

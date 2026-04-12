@@ -1,17 +1,21 @@
-"use client";
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { 
-  Brain, 
-  ArrowLeft, 
-  ArrowRight,
-  CheckCircle,
-  Clock
-} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+import { AuthGuard, GlassCard } from '@/components/lifeos';
 import { getMBTIQuestions, saveMBTIResponses, saveMBTIResult } from '@/lib/supabase';
 
 export default function MbtiTestPage() {
+  return (
+    <AuthGuard>
+      <MbtiTestContent />
+    </AuthGuard>
+  );
+}
+
+function MbtiTestContent() {
   const router = useRouter();
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,16 +23,17 @@ export default function MbtiTestPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isCompleted, setIsCompleted] = useState(false);
   const [mbtiResult, setMbtiResult] = useState('');
-  const [userId, setUserId] = useState<string>('demo-user'); // Replace with real user ID from auth
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchQuestions() {
       setLoading(true);
       try {
         const data = await getMBTIQuestions();
-        setQuestions(data);
+        setQuestions(data ?? []);
       } catch (error) {
-        alert('Failed to load questions.');
+        console.error('Failed to load MBTI questions:', error);
       } finally {
         setLoading(false);
       }
@@ -37,7 +42,7 @@ export default function MbtiTestPage() {
   }, []);
 
   const handleAnswer = (questionId: string, value: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: value }));
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
   const handleNext = () => {
@@ -48,199 +53,275 @@ export default function MbtiTestPage() {
     }
   };
 
+  const handleBack = () => {
+    if (currentQuestion > 0) setCurrentQuestion(currentQuestion - 1);
+  };
+
   const calculateMbtiType = async () => {
-    // Count answers for each trait
-    const counts = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
-    Object.values(answers).forEach(answer => {
-      if (answer in counts) counts[answer as keyof typeof counts]++;
-    });
-    const type = [
-      counts.E > counts.I ? 'E' : 'I',
-      counts.S > counts.N ? 'S' : 'N',
-      counts.T > counts.F ? 'T' : 'F',
-      counts.J > counts.P ? 'J' : 'P'
+    // Route each answer through its dimension so 'T' in TF (Thinking)
+    // doesn't collide with 'T' in TA (Turbulent).
+    const counts = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0, Turbulent: 0, Assertive: 0 };
+    for (const q of questions) {
+      const answer = answers[q.id];
+      if (!answer) continue;
+      switch (q.dimension) {
+        case 'EI': answer === 'E' ? counts.E++ : counts.I++; break;
+        case 'SN': answer === 'S' ? counts.S++ : counts.N++; break;
+        case 'TF': answer === 'T' ? counts.T++ : counts.F++; break;
+        case 'JP': answer === 'J' ? counts.J++ : counts.P++; break;
+        case 'TA': answer === 'T' ? counts.Turbulent++ : counts.Assertive++; break;
+      }
+    }
+    const core = [
+      counts.E >= counts.I ? 'E' : 'I',
+      counts.S >= counts.N ? 'S' : 'N',
+      counts.T >= counts.F ? 'T' : 'F',
+      counts.J >= counts.P ? 'J' : 'P',
     ].join('');
+    const ta = counts.Turbulent + counts.Assertive > 0
+      ? (counts.Turbulent >= counts.Assertive ? '-T' : '-A')
+      : '';
+    const type = core + ta;
     setMbtiResult(type);
-    setIsCompleted(true);
-    // Save responses to Supabase
+
+    // Attempt save. Do NOT flip isCompleted until the save succeeds.
+    setSaving(true);
+    setSaveError(null);
     try {
       await saveMBTIResponses({
-        userId,
-        responses: questions.map(q => ({
-          question_id: q.id,
-          selected_trait: answers[q.id]
-        }))
+        responses: questions
+          .filter((q) => answers[q.id])
+          .map((q) => ({ question_id: q.id, selected_trait: answers[q.id] })),
       });
       await saveMBTIResult({
-        userId,
         result: {
-          e: counts.E, i: counts.I, s: counts.S, n: counts.N, t: counts.T, f: counts.F, j: counts.J, p: counts.P, mbti_type: type
-        }
+          e: counts.E, i: counts.I, s: counts.S, n: counts.N,
+          t: counts.T, f: counts.F, j: counts.J, p: counts.P,
+          turbulent: counts.Turbulent, assertive: counts.Assertive,
+          mbti_type: type,
+        },
       });
-    } catch (error) {
-      // Optionally show error
+      setIsCompleted(true);
+    } catch (error: any) {
+      console.error('MBTI save failed:', error);
+      setSaveError(error?.message || 'Unknown error while saving assessment');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleComplete = () => {
-    localStorage.setItem('mbtiResult', mbtiResult);
-    router.push('/onboarding?step=1&mbti=' + mbtiResult);
+  const handleRetrySave = () => {
+    calculateMbtiType();
+  };
+
+  const handleContinueAnyway = () => {
+    router.push('/dashboard');
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Loading MBTI Questions...</h2>
-        </div>
-      </div>
+      <main className="max-w-lg mx-auto px-4 py-8">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">MBTI Assessment</h1>
+          <p className="text-sm text-text-secondary mb-6">Loading questions&hellip;</p>
+          <GlassCard className="flex items-center justify-center py-16">
+            <div className="spinner h-8 w-8" />
+          </GlassCard>
+        </motion.div>
+      </main>
     );
   }
 
   if (!questions.length) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">No questions found.</h2>
-        </div>
-      </div>
+      <main className="max-w-lg mx-auto px-4 py-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">MBTI Assessment</h1>
+        <p className="text-sm text-text-secondary mb-6">73 questions &middot; ~10 minutes</p>
+        <GlassCard className="text-center py-10">
+          <p className="text-sm text-text-secondary">No questions available yet. Try again later.</p>
+        </GlassCard>
+      </main>
+    );
+  }
+
+  if (saving) {
+    return (
+      <main className="max-w-lg mx-auto px-4 py-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">MBTI Assessment</h1>
+        <p className="text-sm text-text-secondary mb-6">Saving your results&hellip;</p>
+        <GlassCard className="flex items-center justify-center py-16">
+          <div className="spinner h-8 w-8" />
+        </GlassCard>
+      </main>
+    );
+  }
+
+  if (saveError) {
+    return (
+      <main className="max-w-lg mx-auto px-4 py-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">MBTI Assessment</h1>
+          <p className="text-sm text-text-secondary mb-6">Save failed.</p>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
+          <GlassCard className="border-danger/40 py-8">
+            <p className="text-sm font-semibold text-danger mb-2">Couldn&apos;t save your assessment</p>
+            <p className="text-xs text-text-secondary mb-4 break-words">{saveError}</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={handleRetrySave} className="btn-primary text-sm !py-2.5 !px-5 flex-1">
+                Try Again
+              </button>
+              <button onClick={handleContinueAnyway} className="btn-secondary text-sm !py-2.5 !px-5 flex-1">
+                Continue Anyway
+              </button>
+            </div>
+          </GlassCard>
+        </motion.div>
+      </main>
     );
   }
 
   if (isCompleted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
-        <header className="px-6 py-4 border-b bg-white/80 backdrop-blur-sm">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <Link href="/onboarding" className="flex items-center space-x-2 text-gray-600 hover:text-primary-600">
-              <ArrowLeft className="h-5 w-5" />
-              <span>Back to Onboarding</span>
-            </Link>
-            <div className="flex items-center space-x-2">
-              <Brain className="h-8 w-8 text-primary-600" />
-              <span className="text-2xl font-bold gradient-text">LifeOS</span>
-            </div>
-          </div>
-        </header>
-        <div className="px-6 py-8">
-          <div className="max-w-2xl mx-auto">
-            <div className="card text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <h1 className="text-3xl font-bold mb-4">Test Complete!</h1>
-              <p className="text-xl text-gray-600 mb-8">
-                Your MBTI Type: <span className="font-bold text-primary-600">{mbtiResult}</span>
-              </p>
-              <button onClick={handleComplete} className="btn-primary">
-                Continue to Goals
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <main className="max-w-lg mx-auto px-4 py-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">MBTI Assessment</h1>
+          <p className="text-sm text-text-secondary mb-6">Complete.</p>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
+          <GlassCard glow="cyan" className="text-center py-10">
+            <span className="text-4xl block mb-3">&#x2713;</span>
+            <p className="text-sm text-text-secondary mb-1">Your MBTI type</p>
+            <p className="text-4xl font-semibold tracking-tight text-cyan-accent mb-6">{mbtiResult}</p>
+            <p className="text-xs text-text-secondary mb-6">
+              Saved to your profile. Your LifeOS configuration will adapt accordingly.
+            </p>
+            <button onClick={() => router.push('/dashboard')} className="btn-primary text-sm !py-2.5 !px-6">
+              Continue to Dashboard
+            </button>
+          </GlassCard>
+        </motion.div>
+      </main>
     );
   }
 
   const currentQ = questions[currentQuestion];
   const progress = ((currentQuestion + 1) / questions.length) * 100;
+  const selected = answers[currentQ.id];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
-      <header className="px-6 py-4 border-b bg-white/80 backdrop-blur-sm">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/onboarding" className="flex items-center space-x-2 text-gray-600 hover:text-primary-600">
-            <ArrowLeft className="h-5 w-5" />
-            <span>Back to Onboarding</span>
-          </Link>
-          <div className="flex items-center space-x-2">
-            <Brain className="h-8 w-8 text-primary-600" />
-            <span className="text-2xl font-bold gradient-text">LifeOS</span>
-          </div>
+    <main className="max-w-lg mx-auto px-4 py-8">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">MBTI Assessment</h1>
+        <p className="text-sm text-text-secondary mb-6">73 questions &middot; ~10 minutes</p>
+      </motion.div>
+
+      {/* Progress */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="mb-5"
+      >
+        <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
+          <span>Question {currentQuestion + 1} of {questions.length}</span>
+          <span>{Math.round(progress)}%</span>
         </div>
-      </header>
-      <div className="px-6 py-4 bg-white border-b">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600">
-              Question {currentQuestion + 1} of {questions.length}
-            </span>
-            <span className="text-sm text-gray-600">
-              {Math.round(progress)}% Complete
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
+        <div
+          className="h-1.5 rounded-full bg-white/10 overflow-hidden"
+          role="progressbar"
+          aria-valuenow={Math.round(progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full bg-cyan-accent rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
         </div>
+      </motion.div>
+
+      {/* Question card */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentQuestion}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+        >
+          <GlassCard>
+            <h2 className="text-lg font-semibold tracking-tight text-white mb-1">
+              {currentQ.question_text}
+            </h2>
+            <p className="text-xs text-text-secondary mb-5">Select the option that best describes you.</p>
+
+            <div className="space-y-3">
+              <OptionButton
+                label={currentQ.option_a}
+                selected={selected === currentQ.option_a_type}
+                onClick={() => handleAnswer(currentQ.id, currentQ.option_a_type)}
+              />
+              <OptionButton
+                label={currentQ.option_b}
+                selected={selected === currentQ.option_b_type}
+                onClick={() => handleAnswer(currentQ.id, currentQ.option_b_type)}
+              />
+            </div>
+          </GlassCard>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Nav buttons */}
+      <div className="flex items-center justify-between gap-3 mt-5">
+        <button
+          onClick={handleBack}
+          disabled={currentQuestion === 0}
+          className="btn-secondary text-sm !py-2.5 !px-5 disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          Back
+        </button>
+        <button
+          onClick={handleNext}
+          disabled={!selected}
+          className="btn-primary text-sm !py-2.5 !px-5 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {currentQuestion === questions.length - 1 ? 'Finish' : 'Next'}
+        </button>
       </div>
-      <div className="px-6 py-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="card">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-4">{currentQ.question_text}</h2>
-              <p className="text-gray-600">Select the option that best describes you:</p>
-            </div>
-            <div className="space-y-4 mb-8">
-              <button
-                onClick={() => handleAnswer(currentQ.id, currentQ.a_trait)}
-                className={`w-full p-4 text-left rounded-lg border transition-all ${
-                  answers[currentQ.id] === currentQ.a_trait
-                    ? 'bg-primary-50 border-primary-500 text-primary-700'
-                    : 'bg-white border-gray-300 hover:border-primary-300 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    answers[currentQ.id] === currentQ.a_trait
-                      ? 'border-primary-500 bg-primary-500'
-                      : 'border-gray-300'
-                  }`}>
-                    {answers[currentQ.id] === currentQ.a_trait && (
-                      <div className="w-2 h-2 bg-white rounded-full"></div>
-                    )}
-                  </div>
-                  <span className="font-medium">{currentQ.option_a}</span>
-                </div>
-              </button>
-              <button
-                onClick={() => handleAnswer(currentQ.id, currentQ.b_trait)}
-                className={`w-full p-4 text-left rounded-lg border transition-all ${
-                  answers[currentQ.id] === currentQ.b_trait
-                    ? 'bg-primary-50 border-primary-500 text-primary-700'
-                    : 'bg-white border-gray-300 hover:border-primary-300 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    answers[currentQ.id] === currentQ.b_trait
-                      ? 'border-primary-500 bg-primary-500'
-                      : 'border-gray-300'
-                  }`}>
-                    {answers[currentQ.id] === currentQ.b_trait && (
-                      <div className="w-2 h-2 bg-white rounded-full"></div>
-                    )}
-                  </div>
-                  <span className="font-medium">{currentQ.option_b}</span>
-                </div>
-              </button>
-            </div>
-            <div className="flex justify-end">
-              <button
-                onClick={handleNext}
-                disabled={!answers[currentQ.id]}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {currentQuestion === questions.length - 1 ? 'Complete Test' : 'Next'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </main>
   );
-} 
+}
+
+function OptionButton({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`w-full text-left px-4 py-4 rounded-xl border transition-all min-h-[56px] ${
+        selected
+          ? 'border-cyan-accent/60 bg-cyan-accent/15 text-cyan-accent shadow-[0_0_20px_rgba(0,212,255,0.15)]'
+          : 'border-glass-border bg-white/5 text-white hover:bg-white/8 hover:border-glass-border-hover'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+            selected ? 'border-cyan-accent bg-cyan-accent' : 'border-white/30'
+          }`}
+        >
+          {selected && <span className="w-1.5 h-1.5 rounded-full bg-dark-bg" />}
+        </span>
+        <span className="text-sm leading-relaxed">{label}</span>
+      </div>
+    </button>
+  );
+}
