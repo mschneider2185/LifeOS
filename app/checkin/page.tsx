@@ -78,8 +78,36 @@ function CheckInContent() {
     load();
   }, []);
 
+  // Disable mobile pull-to-refresh on this page only — it was triggering
+  // accidental blank submissions. Restore original behavior on unmount so
+  // other pages keep their default scroll feel.
+  useEffect(() => {
+    const prevBody = document.body.style.overscrollBehaviorY;
+    const prevHtml = document.documentElement.style.overscrollBehaviorY;
+    document.body.style.overscrollBehaviorY = 'none';
+    document.documentElement.style.overscrollBehaviorY = 'none';
+    return () => {
+      document.body.style.overscrollBehaviorY = prevBody;
+      document.documentElement.style.overscrollBehaviorY = prevHtml;
+    };
+  }, []);
+
   const handleSubmit = async () => {
+    if (submitting) return;
+    // Empty-state guard: energy + stress are required, and at least one
+    // signal must be present so a triggered submit can't create a ghost entry.
     if (!energy || !stress) return;
+    const hasAnyContent =
+      !!energy ||
+      !!stress ||
+      exercise ||
+      brainDumpUsed ||
+      topWin.trim() !== '' ||
+      biggestBlocker.trim() !== '' ||
+      moodNote.trim() !== '' ||
+      projectsTouched.trim() !== '' ||
+      (sleepHours.trim() !== '' && parseFloat(sleepHours) > 0);
+    if (!hasAnyContent) return;
     setSubmitting(true);
 
     const body: CreateCheckInBody = {
@@ -122,7 +150,7 @@ function CheckInContent() {
 
   return (
     <>
-      <main className="max-w-lg mx-auto px-4 py-8">
+      <main className="max-w-lg mx-auto px-4 py-8" style={{ overscrollBehaviorY: 'none' }}>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">Daily Check-in</h1>
           <p className="text-sm text-text-secondary mb-6">30 seconds. How are you doing?</p>
