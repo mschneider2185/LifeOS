@@ -111,7 +111,7 @@ function CheckInContent() {
     setSubmitting(true);
 
     const body: CreateCheckInBody = {
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toLocaleDateString('en-CA'),
       energyLevel: energy,
       stressLevel: stress,
       sleepHours: sleepHours === '' ? 0 : parseFloat(sleepHours),
