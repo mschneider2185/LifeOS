@@ -273,6 +273,23 @@ export async function getCheckIns(limit = 10): Promise<CheckIn[]> {
   return results.map(parseCheckIn);
 }
 
+/**
+ * Fetch the check-in whose Date title matches a specific YYYY-MM-DD string.
+ * Used by the dashboard so "Today's Check-in" is actually today's — not
+ * whatever was most recently created in Notion (which can lag due to the
+ * created_time index, or sort wrong when historical data was backfilled).
+ */
+export async function getCheckInByDate(dateTitle: string): Promise<CheckIn | null> {
+  const results = await queryDatabase('NOTION_CHECKIN_DB', {
+    filter: {
+      property: 'Date',
+      title: { equals: dateTitle },
+    },
+    page_size: 1,
+  });
+  return results[0] ? parseCheckIn(results[0]) : null;
+}
+
 export async function createCheckIn(data: {
   date: string;
   energyLevel: EnergyLevel;

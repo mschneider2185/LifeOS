@@ -66,7 +66,11 @@ function DashboardContent() {
   const fetchDashboard = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await fetch(`/api/notion/dashboard?t=${Date.now()}`);
+      // Pass today's LOCAL date (matches the format written by /checkin) so
+      // the API filters to today's check-in explicitly, rather than trusting
+      // Notion's created_time sort to surface the freshest row.
+      const today = new Date().toLocaleDateString('en-CA');
+      const res = await fetch(`/api/notion/dashboard?today=${today}&t=${Date.now()}`);
       const json = (await res.json()) as NotionListResponse<DashboardData>;
       if (json.error) {
         setError(json.error);
